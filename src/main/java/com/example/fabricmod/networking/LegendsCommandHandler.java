@@ -47,6 +47,9 @@ public class LegendsCommandHandler {
     private static final String ARMY_TEAM = "fabricmod_army";
     private static final Set<UUID> COMMAND_MODE_PLAYERS = new HashSet<>();
 
+    // 当前跟随玩家的召唤物映射：玩家UUID → [召唤物UUID列表]
+    private static final Map<UUID, List<UUID>> FOLLOWING_MOBS = new HashMap<>();
+
     private LegendsCommandHandler() {}
     public static LegendsCommandHandler getInstance() { return INSTANCE; }
 
@@ -161,6 +164,44 @@ public class LegendsCommandHandler {
     }
 
     // ═══════════════════════════════════════════════════
+    //  跟随状态管理
+    // ═══════════════════════════════════════════════════
+    //  玩家举起旗帜时触发跟随，放下旗帜时停止。
+    //  服务端维护 Map<玩家UUID, List<召唤物UUID>> 以便快速查询。
+
+    /**
+     * 将召唤物注册为跟随当前玩家。
+     */
+    public static void registerFollowing(ServerPlayerEntity player, MobEntity mob) {
+        FOLLOWING_MOBS
+            .computeIfAbsent(player.getUuid(), k -> new ArrayList<>())
+            .add(mob.getUuid());
+    }
+
+    /**
+     * 取消召唤物的跟随状态（放下旗帜、死亡、消失时调用）。
+     */
+    public static void unregisterFollowing(ServerPlayerEntity player, MobEntity mob) {
+        List<UUID> list = FOLLOWING_MOBS.get(player.getUuid());
+        if (list != null) list.remove(mob.getUuid());
+    }
+
+    /**
+     * 清除玩家所有跟随召唤物（玩家断开连接时调用）。
+     */
+    public static void clearFollowing(ServerPlayerEntity player) {
+        FOLLOWING_MOBS.remove(player.getUuid());
+    }
+
+    /**
+     * 获取玩家当前跟随的召唤物数量。
+     */
+    public static int getFollowingCount(ServerPlayerEntity player) {
+        List<UUID> list = FOLLOWING_MOBS.get(player.getUuid());
+        return list == null ? 0 : list.size();
+    }
+
+    // ═══════════════════════════════════════════════════
     //  选择单位
     // ═══════════════════════════════════════════════════
 
@@ -215,6 +256,7 @@ public class LegendsCommandHandler {
             mob.setPosition(x, player.getY(), z);
             world.spawnEntity(mob);
             addToArmy(mob, world);
+            registerFollowing(player, mob);
             bindGoals(mob, player);
         }
 
