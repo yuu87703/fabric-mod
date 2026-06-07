@@ -116,7 +116,7 @@ public class LegendsCommandHandler {
             Vec3d pos = ((BlockHitResult) hitResult).getBlockPos().toCenterPos();
             // 潜行+右键 → 冲锋信标；普通右键 → 移动命令
             if (sp.isSneaking()) {
-                commandCharge(player.getServerWorld(), pos, sp);
+                commandCharge(sp.getServerWorld(), pos, sp);
                 sp.sendMessage(
                     Text.literal("§c⚡ 冲锋信标已放置 — 召唤物正在突击该区域！"), false);
             } else {
