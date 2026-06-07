@@ -2,7 +2,7 @@ package com.example.fabricmod.networking;
 
 import com.example.fabricmod.FabricMod;
 import com.example.fabricmod.entity.goal.FollowPlayerGoal;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.mob.MobEntity;
@@ -18,6 +18,14 @@ import net.minecraft.world.World;
  * 使用 Fabric 1.21.1 的 CustomPayload 新 API。
  */
 public class ModPackets {
+
+    /**
+     * 先向 Fabric API 声明数据包类型（必须！否则崩溃）。
+     */
+    public static void registerPayload() {
+        FabricMod.LOGGER.info("Registering payload type: {}", GKeyPressedPayload.ID.id());
+        PayloadTypeRegistry.playC2S().register(GKeyPressedPayload.ID, GKeyPressedPayload.CODEC);
+    }
 
     /**
      * 注册服务端接收器。

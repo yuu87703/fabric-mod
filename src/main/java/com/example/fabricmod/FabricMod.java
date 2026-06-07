@@ -25,7 +25,8 @@ public class FabricMod implements ModInitializer {
     public void onInitialize() {
         LOGGER.info("{} v{} initialized!", MOD_ID, FabricMod.class.getPackage().getImplementationVersion());
 
-        // === Register custom packets (注册网络包服务端接收器) ===
+        // === Register custom packets (声明包类型 + 注册服务端接收器) ===
+        ModPackets.registerPayload();
         ModPackets.registerC2SPackets();
 
         // === Register items here ===
