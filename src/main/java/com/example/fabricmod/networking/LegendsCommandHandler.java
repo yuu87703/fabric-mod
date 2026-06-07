@@ -114,8 +114,16 @@ public class LegendsCommandHandler {
             if (!canCommand(sp)) return ActionResult.PASS;
 
             Vec3d pos = ((BlockHitResult) hitResult).getBlockPos().toCenterPos();
-            commandMove(selectNearbyMobs(sp), pos);
-            sp.sendMessage(Text.literal("§e[指挥] §6" + getNearbyCount(sp) + " §e个单位正在移动"), false);
+            // 潜行+右键 → 冲锋信标；普通右键 → 移动命令
+            if (sp.isSneaking()) {
+                commandCharge(player.getServerWorld(), pos, sp);
+                sp.sendMessage(
+                    Text.literal("§c⚡ 冲锋信标已放置 — 召唤物正在突击该区域！"), false);
+            } else {
+                commandMove(selectNearbyMobs(sp), pos);
+                sp.sendMessage(
+                    Text.literal("§e[指挥] §6" + getNearbyCount(sp) + " §e个单位正在移动"), false);
+            }
             return ActionResult.FAIL;
         });
 
@@ -308,6 +316,7 @@ public class LegendsCommandHandler {
 
         // 三级目标选择器
         mob.targetSelector.add(0, new LockOnGoalWrapper(mob));               // p0 集火
+        mob.targetSelector.add(1, new ChargeTargetGoal(mob));                // p1 冲锋信标
         mob.targetSelector.add(1, new DefendPlayerTargetGoal(mob, player));  // p1 防御
         mob.targetSelector.add(2, new AutoTargetGoal(mob));                  // p2 索敌
     }
@@ -388,6 +397,45 @@ public class LegendsCommandHandler {
             m.getNavigation().stop(); m.setTarget(null);
             m.goalSelector.clear(g -> true); m.targetSelector.clear(g -> true);
         }
+    }
+
+    /**
+     * 冲锋信标：在指定位置放置信标，激活所有召唤物的 ChargeTargetGoal，
+     * 使它们优先攻击信标区域内的敌对生物。
+     */
+    public static void commandCharge(ServerWorld world, Vec3d beaconPos, ServerPlayerEntity player) {
+        // 粒子效果：光柱标记信标位置
+        for (int h = 0; h < 16; h++) {
+            world.spawnParticles(net.minecraft.particle.ParticleTypes.FLAME,
+                    beaconPos.x, beaconPos.y + h * 0.5, beaconPos.z,
+                    2, 0.2, 0, 0.2, 0.02);
+            world.spawnParticles(net.minecraft.particle.ParticleTypes.SOUL_FIRE_FLAME,
+                    beaconPos.x, beaconPos.y + h * 0.5, beaconPos.z,
+                    1, 0.1, 0, 0.1, 0.01);
+        }
+
+        // 对所有己方召唤物激活 ChargeTargetGoal
+        List<MobEntity> mobs = selectNearbyMobs(player);
+        for (MobEntity m : mobs) {
+            if (!m.isAlive()) continue;
+            // 遍历 targetSelector，找到 ChargeTargetGoal 并激活
+            m.goalSelector.clear(g -> true);
+            m.goalSelector.add(0, new MeleeAttackGoal((PathAwareEntity) m, 1.3, true));
+            // 通过反射或重新绑定来激活冲锋——ChargeTargetGoal 需要信标位置
+            // 最简单：重新绑定目标选择器，让 ChargeTargetGoal 激活
+            activateChargeOnMob(m, beaconPos);
+        }
+    }
+
+    private static void activateChargeOnMob(MobEntity mob, Vec3d beaconPos) {
+        // 替换 targetSelector：清除旧目标，重新绑定带激活信标的 ChargeTargetGoal
+        // 保留 p2 AutoTargetGoal 作为后备
+        mob.targetSelector.clear(g -> true);
+        mob.targetSelector.add(0, new LockOnGoalWrapper(mob));
+        ChargeTargetGoal charge = new ChargeTargetGoal(mob);
+        charge.activate(beaconPos);
+        mob.targetSelector.add(1, charge);
+        mob.targetSelector.add(2, new AutoTargetGoal(mob));
     }
 
     // ═══════════════════════════════════════════════════
