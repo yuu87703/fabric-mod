@@ -43,7 +43,7 @@ public class AutoTargetGoal extends Goal {
         scanTimer = interval;
 
         // 扫描附近敌对生物，排除己方阵营
-        java.util.Set<String> armyMembers = getArmyMembers();
+        java.util.Collection<String> armyMembers = getArmyMembers();
         List<HostileEntity> hostiles = mob.getWorld().getEntitiesByClass(
                 HostileEntity.class,
                 mob.getBoundingBox().expand(range),

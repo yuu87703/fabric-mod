@@ -130,11 +130,8 @@ public class LegendsCommandHandler {
     // ═══════════════════════════════════════════════════
 
     private static void registerDamageEvents() {
-        ServerLivingEntityEvents.AFTER_DAMAGE.register((net.minecraft.entity.LivingEntity entity, net.minecraft.entity.damage.DamageSource source, float amount) -> {
-            if (!(entity instanceof ServerPlayerEntity player)) return;
-            if (!(source.getAttacker() instanceof LivingEntity attacker)) return;
-            commandAttack(selectNearbyMobs(player), attacker);
-        });
+        // 自动防御：玩家受伤时召唤物反击（Fabric API AFTER_DAMAGE）
+        // 暂时移除，用 DefendPlayerTargetGoal 替代
     }
 
     // ═══════════════════════════════════════════════════
