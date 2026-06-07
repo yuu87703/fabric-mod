@@ -120,7 +120,8 @@ public class LegendsCommandHandler {
     }
 
     private static boolean canCommand(ServerPlayerEntity sp) {
-        if (isInCommandMode(sp)) return true;
+        // 命令前置条件：手持旗帜或木棍（跟随状态）
+        // 不手持则无法指挥——放下旗帜后怪物原地待命
         return sp.getMainHandStack().getItem() instanceof BannerItem
                 || sp.getMainHandStack().getItem() == Items.STICK;
     }
