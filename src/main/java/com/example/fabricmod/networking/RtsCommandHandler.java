@@ -3,7 +3,6 @@ package com.example.fabricmod.networking;
 import com.example.fabricmod.entity.goal.DefendPlayerTargetGoal;
 import com.example.fabricmod.entity.goal.FollowOwnerGoal;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.ai.goal.MeleeAttackGoal;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.mob.MobEntity;
@@ -70,10 +69,8 @@ public class RtsCommandHandler {
         for (MobEntity m : mobs) {
             if (!m.isAlive()) continue;
             m.setTarget(target);
-            m.targetSelector.clear();
-            m.targetSelector.add(0, new net.minecraft.entity.ai.goal.NearestAttackableTargetGoal<>(
-                    m, LivingEntity.class, 10, true, false,
-                    entity -> entity == target));
+            m.targetSelector.clear(goal -> true);
+            m.targetSelector.add(0, new LockOnGoal(m, target));
         }
         p.sendMessage(Text.literal("§c[RTS] §6" + mobs.size()
                 + " §c个单位正在攻击 §e" + target.getName().getString()), false);
@@ -115,6 +112,23 @@ public class RtsCommandHandler {
     private static void resetState(MobEntity mob) {
         mob.getNavigation().stop();
         mob.setTarget(null);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Inner class: LockOnGoal — 锁定攻击指定实体
+    // ═══════════════════════════════════════════════
+
+    public static class LockOnGoal extends Goal {
+        private final MobEntity mob;
+        private final LivingEntity target;
+        public LockOnGoal(MobEntity mob, LivingEntity target) {
+            this.mob = mob; this.target = target;
+            this.setControls(EnumSet.of(Control.TARGET));
+        }
+        @Override public boolean canStart() { return target != null && target.isAlive(); }
+        @Override public boolean shouldContinue() { return target != null && target.isAlive(); }
+        @Override public void start() { mob.setTarget(target); }
+        @Override public void tick() { if (target.isAlive()) mob.setTarget(target); }
     }
 
     // ═══════════════════════════════════════════════
