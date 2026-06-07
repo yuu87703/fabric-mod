@@ -469,7 +469,7 @@ public class LegendsCommandHandler {
                 net.minecraft.entity.decoration.ArmorStandEntity stand = entry.getValue();
                 if (!stand.isAlive()) return true;
                 // 8 秒 = 160 tick 后移除
-                if (stand.getAge() > 160) {
+                if (stand.age > 160) {
                     stand.remove(net.minecraft.entity.Entity.RemovalReason.DISCARDED);
                     // 清除该信标关联的 ChargeTargetGoal
                     // （ChargeTargetGoal 的 active 状态会在目标死亡或距离过远时自然失效）
