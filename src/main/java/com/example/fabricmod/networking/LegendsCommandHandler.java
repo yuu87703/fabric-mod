@@ -213,11 +213,15 @@ public class LegendsCommandHandler {
     public static void clearFollowing(ServerPlayerEntity player) {
         FOLLOWING_MOBS.remove(player.getUuid());
     }
-
-    /**
-     * 获取玩家当前跟随的召唤物数量。
      */
     public static int getFollowingCount(ServerPlayerEntity player) {
+        List<UUID> list = FOLLOWING_MOBS.get(player.getUuid());
+        return list == null ? 0 : list.size();
+    }
+
+    /**
+     * 获取当前跟随中的存活召唤物实体列表。
+     */
     public static List<MobEntity> getFollowingMobs(ServerPlayerEntity player) {
         List<MobEntity> result = new ArrayList<>();
         List<UUID> uuids = FOLLOWING_MOBS.get(player.getUuid());
@@ -227,9 +231,6 @@ public class LegendsCommandHandler {
             if (e instanceof MobEntity m && m.isAlive()) result.add(m);
         }
         return result;
-    }
-        List<UUID> list = FOLLOWING_MOBS.get(player.getUuid());
-        return list == null ? 0 : list.size();
     }
 
     // ═══════════════════════════════════════════════════
