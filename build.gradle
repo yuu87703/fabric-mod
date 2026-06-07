@@ -13,6 +13,8 @@ base {
 loom {
     splitEnvironmentSourceSets()
 
+    accessWidenerPath = file("src/main/resources/fabricmod.accesswidener")
+
     mods {
         modId {
             sourceSet sourceSets.main
