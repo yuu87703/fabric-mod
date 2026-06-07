@@ -82,6 +82,13 @@ public class FollowOwnerGoal extends Goal {
     @Override
     public void tick() {
         if (player == null || player.isRemoved()) return;
+
+        // —— 判断玩家是否手持旗帜（引诱模式） ——
+        boolean holdingBanner = player.getMainHandStack().getItem()
+                instanceof net.minecraft.item.BannerItem;
+        double effectiveStopDist = holdingBanner ? stopDistance * 0.6 : stopDistance;
+        double effectiveSpeed = holdingBanner ? speed * 1.1 : speed;
+
         double dist = mob.distanceTo(player);
 
         // —— ① 超距传送 ——
@@ -92,7 +99,7 @@ public class FollowOwnerGoal extends Goal {
 
         // —— ② 卡住检测 ——
         Vec3d pos = mob.getPos();
-        if (lastPos != null && dist > stopDistance) {
+        if (lastPos != null && dist > effectiveStopDist) {
             if (pos.distanceTo(lastPos) < 0.05) {
                 if (++stuckTimer > STUCK_THRESHOLD) {
                     mob.getJumpControl().setActive();
@@ -104,24 +111,37 @@ public class FollowOwnerGoal extends Goal {
         }
         lastPos = pos;
 
-        // —— ③ 正常跟随，走向阵型位置 ——
+        // —— ③ 引诱模式：头部转向玩家 ——
+        if (holdingBanner) {
+            mob.getLookControl().lookAt(player, 60.0F, 60.0F);
+            // 引诱粒子：金色光芒环绕
+            if (mob.getWorld() instanceof ServerWorld sw && mob.getRandom().nextInt(10) == 0) {
+                sw.spawnParticles(net.minecraft.particle.ParticleTypes.END_ROD,
+                        mob.getX(), mob.getY() + 1.5, mob.getZ(),
+                        1, 0.2, 0.3, 0.2, 0.01);
+            }
+        }
+
+        // —— ④ 走向阵型位置 ——
         Vec3d formationTarget = getFormationPosition();
         double formationDist = mob.squaredDistanceTo(formationTarget);
 
-        if (formationDist > stopDistance * stopDistance) {
+        if (formationDist > effectiveStopDist * effectiveStopDist) {
             mob.getNavigation().startMovingTo(
-                    formationTarget.x, formationTarget.y, formationTarget.z, speed);
+                    formationTarget.x, formationTarget.y, formationTarget.z, effectiveSpeed);
         } else {
             mob.getNavigation().stop();
             failedPathCount = 0;
         }
 
-        // —— ④ 状态粒子（双向视觉反馈） ——
+        // —— ⑤ 状态粒子 ——
         particleTimer--;
         if (particleTimer <= 0 && mob.getWorld() instanceof ServerWorld sw) {
-            particleTimer = 30; // 每 1.5 秒显示一次
-            // 跟随状态：蓝色魂火粒子飘浮
-            sw.spawnParticles(net.minecraft.particle.ParticleTypes.SOUL_FIRE_FLAME,
+            particleTimer = holdingBanner ? 15 : 30;
+            sw.spawnParticles(
+                    holdingBanner
+                        ? net.minecraft.particle.ParticleTypes.END_ROD
+                        : net.minecraft.particle.ParticleTypes.SOUL_FIRE_FLAME,
                     mob.getX(), mob.getY() + 2.2, mob.getZ(),
                     1, 0.1, 0, 0.1, 0.005);
         }
