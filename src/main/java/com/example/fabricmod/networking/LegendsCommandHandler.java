@@ -147,7 +147,7 @@ public class LegendsCommandHandler {
             // 集火：只对当前跟随中的召唤物生效
             List<MobEntity> followingMobs = getFollowingMobs(sp);
             if (!followingMobs.isEmpty()) {
-                commandAttack(followingMobs, target);
+                commandAttack(followingMobs, sp, target);
                 sp.sendMessage(
                     Text.literal("§c⚔ 集火目标：§e" + target.getName().getString()
                         + " §c—— §6" + followingMobs.size() + " §c个单位正在攻击！"),
@@ -401,18 +401,24 @@ public class LegendsCommandHandler {
         }
     }
 
-    // 集火高亮目标跟踪（目标UUID → 过期tick）
+    // 集火目标：玩家UUID → 目标实体UUID（中央存储，动态更新）
+    private static final Map<UUID, UUID> FOCUS_TARGETS = new HashMap<>();
+
+    // 集火高亮跟踪（目标UUID → 过期tick）
     private static final Map<UUID, Long> GLOWING_TARGETS = new HashMap<>();
 
-    public static void commandAttack(List<MobEntity> mobs, LivingEntity target) {
+    public static void commandAttack(List<MobEntity> mobs, ServerPlayerEntity player, LivingEntity target) {
         if (mobs.isEmpty()) return;
 
-        // 标记目标高亮（GLOW效果），持续 30 秒
+        // 更新中央集火目标
+        FOCUS_TARGETS.put(player.getUuid(), target.getUuid());
+
+        // 标记目标高亮，持续 30 秒
         target.setGlowing(true);
         GLOWING_TARGETS.put(target.getUuid(),
-                target.getWorld().getServer().getTicks() + 600L); // 30s = 600 ticks
+                target.getWorld().getServer().getTicks() + 600L);
 
-        // 粒子标记：目标头顶旋转光点
+        // 粒子标记
         if (target.getWorld() instanceof ServerWorld sw) {
             for (int i = 0; i < 8; i++) {
                 double rad = i * Math.PI / 4;
@@ -424,13 +430,14 @@ public class LegendsCommandHandler {
             }
         }
 
+        // 为所有跟随生物绑定 LockOnGoalWrapper（自动从 FOCUS_TARGETS 读取）
         for (MobEntity m : mobs) {
             if (!m.isAlive()) continue;
             m.getNavigation().stop();
             m.targetSelector.clear(g -> true);
             m.goalSelector.clear(g -> true);
             m.setTarget(target);
-            m.targetSelector.add(0, new LockOnGoalWrapper(m, target));
+            m.targetSelector.add(0, new LockOnGoalWrapper(m, player.getUuid()));
             m.goalSelector.add(0, new MeleeAttackGoal((PathAwareEntity) m, 1.2, true));
         }
     }
@@ -585,14 +592,57 @@ public class LegendsCommandHandler {
      */
     public static class LockOnGoalWrapper extends Goal {
         private final MobEntity mob;
-        private LivingEntity lockedTarget;
-        public LockOnGoalWrapper(MobEntity mob) { this.mob = mob; this.setControls(EnumSet.of(Control.TARGET)); }
-        public LockOnGoalWrapper(MobEntity mob, LivingEntity target) { this(mob); this.lockedTarget = target; }
-        public void setTarget(LivingEntity t) { this.lockedTarget = t; }
-        @Override public boolean canStart() { return lockedTarget != null && lockedTarget.isAlive(); }
-        @Override public boolean shouldContinue() { return lockedTarget != null && lockedTarget.isAlive(); }
-        @Override public void start() { mob.setTarget(lockedTarget); }
-        @Override public void tick() { if (lockedTarget != null && lockedTarget.isAlive()) mob.setTarget(lockedTarget); }
+        private final UUID playerUuid;   // 从 FOCUS_TARGETS 读取目标
+        private LivingEntity cachedTarget;
+
+        /** 无参构造：用于 bindGoals 预留位置，后期由 commandAttack 指定 */
+        public LockOnGoalWrapper(MobEntity mob) {
+            this.mob = mob; this.playerUuid = null;
+            this.setControls(EnumSet.of(Control.TARGET));
+        }
+
+        /** 指定玩家：从 FOCUS_TARGETS 动态读取集火目标 */
+        public LockOnGoalWrapper(MobEntity mob, UUID playerUuid) {
+            this.mob = mob; this.playerUuid = playerUuid;
+            this.setControls(EnumSet.of(Control.TARGET));
+        }
+
+        @Override
+        public boolean canStart() {
+            refreshTarget();
+            return cachedTarget != null && cachedTarget.isAlive();
+        }
+
+        @Override
+        public boolean shouldContinue() {
+            if (cachedTarget == null || !cachedTarget.isAlive()) return false;
+            return mob.getTarget() == cachedTarget;
+        }
+
+        @Override
+        public void start() {
+            if (cachedTarget != null) mob.setTarget(cachedTarget);
+        }
+
+        @Override
+        public void tick() {
+            refreshTarget();
+            if (cachedTarget != null && cachedTarget.isAlive()) {
+                mob.setTarget(cachedTarget);
+            }
+        }
+
+        /** 从中央 FOCUS_TARGETS 刷新目标实体引用 */
+        private void refreshTarget() {
+            if (playerUuid == null) return;
+            UUID targetUuid = FOCUS_TARGETS.get(playerUuid);
+            if (targetUuid == null) { cachedTarget = null; return; }
+            if (cachedTarget != null && cachedTarget.getUuid().equals(targetUuid) && cachedTarget.isAlive()) return;
+            // 跨世界查找新目标
+            if (mob.getWorld() instanceof ServerWorld sw) {
+                cachedTarget = (LivingEntity) sw.getEntity(targetUuid);
+            }
+        }
     }
 
     /**
