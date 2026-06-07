@@ -74,6 +74,7 @@ public class LegendsCommandHandler {
         PayloadTypeRegistry.playC2S().register(GKeyPressedPayload.ID, GKeyPressedPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(CommandModePayload.ID, CommandModePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(BannerStatePayload.ID, BannerStatePayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(ChargePayload.ID, ChargePayload.CODEC);
     }
 
     private static void registerReceivers() {
@@ -94,6 +95,13 @@ public class LegendsCommandHandler {
                 context.server().execute(() -> {
                     onBannerLowered(context.player());
                 });
+        // 冲锋信标包
+        ServerPlayNetworking.registerGlobalReceiver(ChargePayload.ID, (payload, context) -> {
+            ServerPlayerEntity p = context.player();
+            context.server().execute(() -> {
+                commandCharge(p.getServerWorld(), payload.toVec3d(), p);
+            });
+        });
             }
         });
     }
