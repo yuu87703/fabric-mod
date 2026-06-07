@@ -109,9 +109,6 @@ public class LegendsCommandHandler {
     private static boolean isInCommandMode(ServerPlayerEntity p) {
         return COMMAND_MODE_PLAYERS.contains(p.getUuid());
     }
-    private static boolean isInCommandMode(ServerPlayerEntity p) {
-        return COMMAND_MODE_PLAYERS.contains(p.getUuid());
-    }
 
     // ═══════════════════════════════════════════════════
     //  交互回调
