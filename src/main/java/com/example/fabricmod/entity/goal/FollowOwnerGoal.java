@@ -55,13 +55,18 @@ public class FollowOwnerGoal extends Goal {
 
     @Override
     public boolean canStart() {
-        return player != null && player.isAlive()
-                && mob.distanceTo(player) > stopDistance;
+        // 只有玩家手持旗帜时才会跟随（放下旗帜→原地待命）
+        if (player == null || !player.isAlive()) return false;
+        if (!(player.getMainHandStack().getItem() instanceof net.minecraft.item.BannerItem))
+            return false;
+        return mob.distanceTo(player) > stopDistance;
     }
 
     @Override
     public boolean shouldContinue() {
-        return player != null && player.isAlive();
+        // 放下旗帜或玩家死亡 → 停止跟随
+        if (player == null || !player.isAlive()) return false;
+        return player.getMainHandStack().getItem() instanceof net.minecraft.item.BannerItem;
     }
 
     @Override
