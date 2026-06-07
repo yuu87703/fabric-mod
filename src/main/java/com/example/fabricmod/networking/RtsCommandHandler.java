@@ -71,7 +71,9 @@ public class RtsCommandHandler {
             if (!m.isAlive()) continue;
             m.setTarget(target);
             m.targetSelector.clear();
-            m.targetSelector.add(0, new LockTargetGoal(m, target));
+            m.targetSelector.add(0, new net.minecraft.entity.ai.goal.NearestAttackableTargetGoal<>(
+                    m, LivingEntity.class, 10, true, false,
+                    entity -> entity == target));
         }
         p.sendMessage(Text.literal("§c[RTS] §6" + mobs.size()
                 + " §c个单位正在攻击 §e" + target.getName().getString()), false);
@@ -113,51 +115,6 @@ public class RtsCommandHandler {
     private static void resetState(MobEntity mob) {
         mob.getNavigation().stop();
         mob.setTarget(null);
-    }
-
-    // ═══════════════════════════════════════════════
-    //  Inner class: LockTargetGoal (优先于 DefendPlayerTargetGoal)
-    // ═══════════════════════════════════════════════
-    //  Manually specified attack target — priority 0 (highest).
-    //  Will not remove the auto-defend goal (priority 1), but takes precedence.
-    //  手动指定的攻击目标，优先级 0（最高），不覆盖自动防御目标。
-
-    public static class LockTargetGoal extends Goal {
-        private final MobEntity mob;
-        private final LivingEntity target;
-
-        public LockTargetGoal(MobEntity mob, LivingEntity target) {
-            this.mob = mob;
-            this.target = target;
-            this.setControls(EnumSet.of(Control.TARGET));
-        }
-
-        @Override
-        public boolean canStart() {
-            return target != null && target.isAlive();
-        }
-
-        @Override
-        public boolean shouldContinue() {
-            return target != null && target.isAlive();
-        }
-
-        @Override
-        public void start() {
-            mob.setTarget(target);
-        }
-
-        @Override
-        public void stop() {
-            // Don't clear target here — let DefendPlayerTargetGoal take over
-        }
-
-        @Override
-        public void tick() {
-            if (target != null && target.isAlive()) {
-                mob.setTarget(target);
-            }
-        }
     }
 
     // ═══════════════════════════════════════════════
