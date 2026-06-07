@@ -10,75 +10,30 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.scoreboard.Scoreboard;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
 /**
- * RTS command handler (singleton).
- * Uses vanilla Minecraft APIs: Scoreboard teams, GoalSelector, Navigation.
+ * RTS command handler (singleton) for Minecraft 1.21.1 Fabric.
  *
- * 队伍管理 → 防止误伤
- * 选择单位 → 扫描 16 格内骷髅/僵尸
- * 指挥命令 → 移动 / 攻击 / 跟随 / 停止
+ * Commands:
+ *   commandMove    → bind RtsMoveGoal, march to coordinate
+ *   commandAttack  → set target, chase
+ *   commandFollow  → rebind FollowOwnerGoal + DefendPlayerTargetGoal
+ *   commandStop    → clear target, stop navigation
+ *   clearAI        → full reset
+ *   selectNearbyMobs → scan 16 blocks for skeletons/zombies
  */
 public class RtsCommandHandler {
 
     private static final RtsCommandHandler INSTANCE = new RtsCommandHandler();
-    private static final String TEAM_PREFIX = "fabricmod_";
-
     private RtsCommandHandler() {}
-
     public static RtsCommandHandler getInstance() { return INSTANCE; }
 
     // ═══════════════════════════════════════════════
-    //  ① Teams — 队伍管理
-    // ═══════════════════════════════════════════════
-    //  Player → fabricmod_owner | Mobs → fabricmod_summon
-    //  Both with friendlyFire=false to prevent friendly fire.
-    //  玩家和召唤物分属两个队伍，均关闭友军伤害。
-
-    public static net.minecraft.scoreboard.Team getOrCreateSummonTeam(ServerWorld world) {
-        Scoreboard sb = world.getScoreboard();
-        String name = TEAM_PREFIX + "summon";
-        net.minecraft.scoreboard.Team t = sb.getTeam(name);
-        if (t == null) { t = sb.addTeam(name); t.setFriendlyFire(false); }
-        return t;
-    }
-
-    public static net.minecraft.scoreboard.Team getOrCreateOwnerTeam(ServerWorld world) {
-        Scoreboard sb = world.getScoreboard();
-        String name = TEAM_PREFIX + "owner";
-        net.minecraft.scoreboard.Team t = sb.getTeam(name);
-        if (t == null) { t = sb.addTeam(name); t.setFriendlyFire(false); }
-        return t;
-    }
-
-    public static void addPlayerToTeam(ServerPlayerEntity player) {
-        ServerWorld w = (ServerWorld) player.getWorld();
-        Scoreboard sb = w.getScoreboard();
-        net.minecraft.scoreboard.Team team = getOrCreateOwnerTeam(w);
-        String name = player.getName().getString();
-        net.minecraft.scoreboard.Team cur = sb.getPlayerTeam(name);
-        if (cur != null && !cur.getName().equals(team.getName()))
-            sb.removePlayerFromTeam(name, cur);
-        sb.addPlayerToTeam(name, team);
-    }
-
-    public static void addMobToTeam(MobEntity mob, ServerWorld world) {
-        Scoreboard sb = world.getScoreboard();
-        net.minecraft.scoreboard.Team team = getOrCreateSummonTeam(world);
-        String key = mob.getUuidAsString();
-        net.minecraft.scoreboard.Team currentTeam = sb.getPlayerTeam(key);
-        if (currentTeam != null && !currentTeam.getName().equals(team.getName()))
-            sb.removePlayerFromTeam(key, currentTeam);
-        sb.addPlayerToTeam(key, team);
-    }
-
-    // ═══════════════════════════════════════════════
-    //  ② Unit Selection — 选择单位
+    //  Selection — 选择单位
     // ═══════════════════════════════════════════════
 
     public static List<MobEntity> selectNearbyMobs(ServerPlayerEntity player) {
@@ -95,16 +50,14 @@ public class RtsCommandHandler {
     }
 
     // ═══════════════════════════════════════════════
-    //  ③ Commands — 指挥命令
+    //  Commands — 指挥命令
     // ═══════════════════════════════════════════════
-    //  Each command: clear old goals, apply new behavior, send feedback.
-    //  每条命令：清除旧 AI → 应用新行为 → 发送反馈
 
     public static void commandMove(List<MobEntity> mobs, ServerPlayerEntity p, Vec3d target) {
         if (mobs == null || mobs.isEmpty()) return;
         for (MobEntity m : mobs) {
             if (!m.isAlive()) continue;
-            resetGoals(m);
+            resetState(m);
             m.goalSelector.add(1, new RtsMoveGoal(m, target, 1.0));
         }
         p.sendMessage(Text.literal("§e[RTS] §6" + mobs.size() + " §e个单位正在移动"), false);
@@ -114,20 +67,19 @@ public class RtsCommandHandler {
         if (mobs == null || mobs.isEmpty()) return;
         for (MobEntity m : mobs) {
             if (!m.isAlive()) continue;
-            resetGoals(m);
+            resetState(m);
             m.setTarget(target);
             m.getNavigation().startMovingTo(target, 1.2);
         }
-        p.sendMessage(
-                Text.literal("§c[RTS] §6" + mobs.size() + " §c个单位正在攻击 §e" + target.getName().getString()),
-                false);
+        p.sendMessage(Text.literal("§c[RTS] §6" + mobs.size()
+                + " §c个单位正在攻击 §e" + target.getName().getString()), false);
     }
 
     public static void commandFollow(List<MobEntity> mobs, ServerPlayerEntity p) {
         if (mobs == null || mobs.isEmpty()) return;
         for (MobEntity m : mobs) {
             if (!m.isAlive()) continue;
-            resetGoals(m);
+            resetState(m);
             m.addStatusEffect(new net.minecraft.entity.effect.StatusEffectInstance(
                     net.minecraft.entity.effect.StatusEffects.FIRE_RESISTANCE,
                     net.minecraft.entity.effect.StatusEffectInstance.INFINITE,
@@ -142,9 +94,7 @@ public class RtsCommandHandler {
         if (mobs == null || mobs.isEmpty()) return;
         for (MobEntity m : mobs) {
             if (!m.isAlive()) continue;
-            resetGoals(m);
-            m.getNavigation().stop();
-            m.setTarget(null);
+            resetState(m);
         }
         p.sendMessage(Text.literal("§7[RTS] §6" + mobs.size() + " §7个单位已停止"), false);
     }
@@ -153,32 +103,19 @@ public class RtsCommandHandler {
         if (mobs == null) return;
         for (MobEntity m : mobs) {
             if (!m.isAlive()) continue;
-            resetGoals(m);
-            m.getNavigation().stop();
-            m.setTarget(null);
-            m.setAttacker(null);
-            m.setAttacking(null);
+            resetState(m);
         }
     }
 
-    // ──────── Helper: reset mob state without touching GoalSelector ────────
-    // GoalSelector in 1.21.1 doesn't expose a reliable clear() method.
-    // We just stop navigation and clear target — old goals will be overridden
-    // by new ones at priority 1 (highest).
-    // 1.21.1 的 GoalSelector 没有可靠的清空方法，直接停导航+清仇恨。
-    // 新添加的高优先级目标（priority 1）会自动覆盖旧目标。
-
-    private static void resetGoals(MobEntity mob) {
+    // ──────── Reset mob state (stop + clear target) ────────
+    private static void resetState(MobEntity mob) {
         mob.getNavigation().stop();
         mob.setTarget(null);
-        mob.setAttacker(null);
     }
 
     // ═══════════════════════════════════════════════
-    //  ④ Inner class: RtsMoveGoal
+    //  Inner class: RtsMoveGoal
     // ═══════════════════════════════════════════════
-    //  Move to fixed coordinate, stop on arrival, no auto-attack.
-    //  定点移动，到达后停步，不沿途攻击。
 
     public static class RtsMoveGoal extends Goal {
         private final MobEntity mob;
