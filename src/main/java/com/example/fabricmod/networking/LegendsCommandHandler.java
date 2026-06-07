@@ -469,14 +469,12 @@ public class LegendsCommandHandler {
             long now = server.getTicks();
             ACTIVE_BEACONS.entrySet().removeIf(entry -> {
                 net.minecraft.entity.decoration.ArmorStandEntity stand = entry.getValue();
-                if (!stand.isAlive()) return true;
                 // 8 秒 = 160 tick 后移除
                 if (stand.age > 160) {
                 if (stand.age > 160) {
                     stand.remove(net.minecraft.entity.Entity.RemovalReason.DISCARDED);
                     // 信标过期 → 恢复跟随状态
                     UUID ownerUuid = BEACON_OWNERS.remove(entry.getKey());
-                    if (ownerUuid != null) {
                         net.minecraft.server.network.ServerPlayerEntity owner = server.getPlayerManager().getPlayer(ownerUuid);
                         if (owner != null) recoverFollowState(owner);
                     }
