@@ -25,8 +25,8 @@ jobs:
       - name: 设置 Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: 生成 Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.10.2
+      - name: 生成 Gradle Wrapper (版本 8.12，兼容 Fabric Loom 1.9.2)
+        run: gradle wrapper --gradle-version 8.12
 
       - name: 编译模组
         run: ./gradlew build
