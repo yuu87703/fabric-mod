@@ -1,14 +1,14 @@
 package com.example.fabricmod.entity.goal;
 
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.ai.goal.TargetGoal;
+import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 
 import java.util.EnumSet;
 
 /**
- * 护卫目标（基于 TargetGoal）
+ * 护卫目标
  *
  * 优先级：
  *   ① 优先攻击玩家正在攻击的目标（player.getAttacking()）
@@ -16,13 +16,14 @@ import java.util.EnumSet;
  *
  * tick 逻辑：每帧刷新，始终追踪玩家最新的敌对目标。
  */
-public class DefendPlayerTargetGoal extends TargetGoal {
+public class DefendPlayerTargetGoal extends Goal {
 
+    private final MobEntity mob;
     private final PlayerEntity player;
     private LivingEntity target;
 
     public DefendPlayerTargetGoal(MobEntity mob, PlayerEntity player) {
-        super(mob, false, false);            // 不检查视线、不检查寻路
+        this.mob = mob;
         this.player = player;
         this.setControls(EnumSet.of(Control.TARGET));
     }
@@ -61,14 +62,12 @@ public class DefendPlayerTargetGoal extends TargetGoal {
     @Override
     public void start() {
         this.mob.setTarget(target);
-        super.start();
     }
 
     @Override
     public void stop() {
         this.mob.setTarget(null);
         this.target = null;
-        super.stop();
     }
 
     /**
