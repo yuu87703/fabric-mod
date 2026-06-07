@@ -31,7 +31,7 @@ dependencies {
 
     // Yarn mappings (or use Mojang mappings)
     mappings loom.layered {
-        mappings("net.fabricmc:yarn:${project.minecraft_version}+build.10:v2")
+        mappings("net.fabricmc:yarn:${project.minecraft_version}+build.3:v2")
     }
 
     // Fabric Loader
