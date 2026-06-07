@@ -96,7 +96,7 @@ public class LegendsCommandHandler {
                     onBannerLowered(context.player());
                 });
         // 冲锋信标包
-        ServerPlayNetworking.registerGlobalReceiver(ChargePayload.ID, (payload, context) -> {
+        ServerPlayNetworking.registerGlobalReceiver(ChargePayload.ID, (chargePayload, context) -> {
             ServerPlayerEntity p = context.player();
             context.server().execute(() -> {
                 commandCharge(p.getServerWorld(), payload.toVec3d(), p);

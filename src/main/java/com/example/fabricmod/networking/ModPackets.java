@@ -122,7 +122,7 @@ public class ModPackets {
             if (!inCommandMode && !holdingBanner && !holdingStick) return ActionResult.PASS;
 
             List<MobEntity> selected = LegendsCommandHandler.selectNearbyMobs(sp);
-            LegendsCommandHandler.commandAttack(selected, target);
+            LegendsCommandHandler.commandAttack(selected, sp, target);
 
             sp.sendMessage(
                     Text.literal("§c[RTS] §6" + selected.size() + " §c个单位正在攻击 §e" + target.getName().getString()),
