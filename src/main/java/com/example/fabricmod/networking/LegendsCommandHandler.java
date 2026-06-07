@@ -404,8 +404,9 @@ public class LegendsCommandHandler {
      * 冲锋信标：在指定位置放置信标，激活所有召唤物的 ChargeTargetGoal，
      * 使它们优先攻击信标区域内的敌对生物。
      */
-    // 存储活跃的冲锋信标（用于定时移除）
+    // 存储活跃的冲锋信标（盔甲架UUID → [盔甲架, 玩家UUID]）
     private static final Map<UUID, net.minecraft.entity.decoration.ArmorStandEntity> ACTIVE_BEACONS = new HashMap<>();
+    private static final Map<UUID, UUID> BEACON_OWNERS = new HashMap<>();
 
     public static void commandCharge(ServerWorld world, Vec3d beaconPos, ServerPlayerEntity player) {
         // ── ① 生成浮空旗帜信标（隐形盔甲架 + 旗帜头饰）──
@@ -418,6 +419,7 @@ public class LegendsCommandHandler {
                 new net.minecraft.item.ItemStack(net.minecraft.item.Items.RED_BANNER));
         world.spawnEntity(beacon);
         ACTIVE_BEACONS.put(beacon.getUuid(), beacon);
+        BEACON_OWNERS.put(beacon.getUuid(), player.getUuid());
 
         // ── ② 粒子效果：火焰光柱 + 魂火环 ──
         for (int h = 0; h < 20; h++) {
@@ -470,17 +472,37 @@ public class LegendsCommandHandler {
                 if (!stand.isAlive()) return true;
                 // 8 秒 = 160 tick 后移除
                 if (stand.age > 160) {
+                if (stand.age > 160) {
                     stand.remove(net.minecraft.entity.Entity.RemovalReason.DISCARDED);
-                    // 清除该信标关联的 ChargeTargetGoal
-                    // （ChargeTargetGoal 的 active 状态会在目标死亡或距离过远时自然失效）
+                    // 信标过期 → 恢复跟随状态
+                    UUID ownerUuid = BEACON_OWNERS.remove(entry.getKey());
+                    if (ownerUuid != null) {
+                        net.minecraft.server.network.ServerPlayerEntity owner = server.getPlayerManager().getPlayer(ownerUuid);
+                        if (owner != null) recoverFollowState(owner);
+                    }
                     return true;
                 }
-                return false;
             });
         });
     }
 
     // ═══════════════════════════════════════════════════
+
+    /**
+     * 信标过期后，恢复所有跟随中的召唤物的跟随状态。
+     */
+    private static void recoverFollowState(ServerPlayerEntity player) {
+        List<UUID> following = FOLLOWING_MOBS.get(player.getUuid());
+        if (following == null) return;
+        for (UUID uid : following) {
+            Entity e = player.getServerWorld().getEntity(uid);
+            if (e instanceof MobEntity mob && mob.isAlive()) {
+                bindGoals(mob, player);
+            }
+        }
+        player.sendMessage(
+                Text.literal("§7⬆ 冲锋结束，召唤物回到跟随状态"), false);
+    }
     //  内部类
     // ═══════════════════════════════════════════════════
 
