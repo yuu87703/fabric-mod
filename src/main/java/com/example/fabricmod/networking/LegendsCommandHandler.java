@@ -432,14 +432,20 @@ public class LegendsCommandHandler {
                     beaconPos.z + 2.5 * Math.sin(rad),
                     1, 0, 0, 0, 0.02);
         }
-
         // ── ③ 激活附近召唤物的冲锋 AI ──
-        List<MobEntity> mobs = selectNearbyMobs(player);
-        for (MobEntity m : mobs) {
-            if (!m.isAlive()) continue;
-            m.goalSelector.clear(g -> true);
-            m.goalSelector.add(0, new MeleeAttackGoal((PathAwareEntity) m, 1.3, true));
-            activateChargeOnMob(m, beaconPos);
+        // --- 3. Charge all FOLLOWING mobs toward the beacon ---
+        List<UUID> following = FOLLOWING_MOBS.get(player.getUuid());
+        if (following != null) {
+            for (UUID uid : following) {
+                Entity e = world.getEntity(uid);
+                if (!(e instanceof MobEntity m) || !m.isAlive()) continue;
+                m.getNavigation().stop();
+                m.setTarget(null);
+                m.goalSelector.clear(g -> true);
+                m.goalSelector.add(0, new net.minecraft.entity.ai.goal.MeleeAttackGoal((PathAwareEntity) m, 1.3, true));
+                m.getNavigation().startMovingTo(beaconPos.x, beaconPos.y, beaconPos.z, 1.3);
+                activateChargeOnMob(m, beaconPos);
+            }
         }
     }
 

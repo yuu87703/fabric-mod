@@ -35,7 +35,7 @@ public class ChargeTargetGoal extends Goal {
     }
 
     public ChargeTargetGoal(MobEntity mob) {
-        this(mob, 8.0);
+        this(mob, 5.0);  // 信标影响半径 5 格
     }
 
     /**
