@@ -5,6 +5,8 @@ import com.example.fabricmod.entity.goal.FollowPlayerGoal;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.item.BannerItem;
 import net.minecraft.item.ItemStack;
@@ -82,6 +84,24 @@ public class ModPackets {
     }
 
     /**
+     * 为生成的生物添加 AI 目标：跟随玩家 + 攻击玩家目标。
+     */
+    private static void addGoalToEntity(MobEntity entity, ServerPlayerEntity player) {
+        // 防止亡灵生物在阳光下自燃（给予永久火抗效果）
+        entity.addStatusEffect(new StatusEffectInstance(
+                StatusEffects.FIRE_RESISTANCE,
+                StatusEffectInstance.INFINITE,
+                0, false, false, false
+        ));
+
+        // 移动/行为目标：以 1.2 速度跟随玩家，距离 < 2 格时停止
+        entity.goalSelector.add(1, new FollowPlayerGoal(entity, player, 1.2, 2.0));
+
+        // 目标选择器：攻击玩家正在攻击的实体，或攻击玩家的实体
+        entity.targetSelector.add(1, new DefendPlayerTargetGoal(entity, player));
+    }
+
+    /**
      * 生成骷髅和僵尸，添加跟随 AI。
      */
     private static void spawnAndFollow(ServerPlayerEntity player) {
@@ -109,7 +129,7 @@ public class ModPackets {
 
             if (mob != null) {
                 mob.setPosition(spawnX, spawnY, spawnZ);
-                mob.goalSelector.add(1, new FollowPlayerGoal(mob, player, 1.2, 2.0));
+                addGoalToEntity(mob, player);
                 world.spawnEntity(mob);
             }
         }
