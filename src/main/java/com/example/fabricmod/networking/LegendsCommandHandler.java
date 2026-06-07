@@ -466,25 +466,22 @@ public class LegendsCommandHandler {
     private static void registerBeaconCleanup() {
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
             if (ACTIVE_BEACONS.isEmpty()) return;
-            long now = server.getTicks();
             ACTIVE_BEACONS.entrySet().removeIf(entry -> {
                 net.minecraft.entity.decoration.ArmorStandEntity stand = entry.getValue();
-                // 8 秒 = 160 tick 后移除
-                if (stand.age > 160) {
+                if (!stand.isAlive()) return true;
                 if (stand.age > 160) {
                     stand.remove(net.minecraft.entity.Entity.RemovalReason.DISCARDED);
-                    // 信标过期 → 恢复跟随状态
                     UUID ownerUuid = BEACON_OWNERS.remove(entry.getKey());
+                    if (ownerUuid != null) {
                         net.minecraft.server.network.ServerPlayerEntity owner = server.getPlayerManager().getPlayer(ownerUuid);
                         if (owner != null) recoverFollowState(owner);
                     }
                     return true;
                 }
+                return false;
             });
         });
     }
-
-    // ═══════════════════════════════════════════════════
     // ═══════════════════════════════════════════════════
     /**
      * 信标过期后，恢复所有跟随中的召唤物的跟随状态。
