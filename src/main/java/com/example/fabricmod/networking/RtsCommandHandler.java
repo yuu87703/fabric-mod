@@ -50,7 +50,6 @@ public class RtsCommandHandler {
         Team t = sb.getTeam(ARMY_TEAM);
         if (t == null) {
             t = sb.addTeam(ARMY_TEAM);
-            t.setFriendlyFire(false);
         }
         return t;
     }

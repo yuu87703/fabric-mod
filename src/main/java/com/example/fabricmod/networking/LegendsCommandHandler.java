@@ -130,7 +130,7 @@ public class LegendsCommandHandler {
     // ═══════════════════════════════════════════════════
 
     private static void registerDamageEvents() {
-        ServerLivingEntityEvents.AFTER_DAMAGE.register((entity, source, amount) -> {
+        ServerLivingEntityEvents.AFTER_DAMAGE.register((net.minecraft.entity.LivingEntity entity, net.minecraft.entity.damage.DamageSource source, float amount) -> {
             if (!(entity instanceof ServerPlayerEntity player)) return;
             if (!(source.getAttacker() instanceof LivingEntity attacker)) return;
             commandAttack(selectNearbyMobs(player), attacker);
@@ -144,7 +144,7 @@ public class LegendsCommandHandler {
     public static Team getOrCreateArmyTeam(ServerWorld world) {
         var sb = world.getScoreboard();
         Team t = sb.getTeam(ARMY_TEAM);
-        if (t == null) { t = sb.addTeam(ARMY_TEAM); t.setFriendlyFire(false); }
+        if (t == null) { t = sb.addTeam(ARMY_TEAM); }
         return t;
     }
 

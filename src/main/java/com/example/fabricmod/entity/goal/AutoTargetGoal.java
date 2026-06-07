@@ -84,7 +84,7 @@ public class AutoTargetGoal extends Goal {
     /**
      * 获取己方阵营的 UUID 集合，用于排除误伤。
      */
-    private java.util.Set<String> getArmyMembers() {
+    private java.util.Collection<String> getArmyMembers() {
         if (!(mob.getWorld() instanceof ServerWorld serverWorld)) return null;
         net.minecraft.scoreboard.Team team = serverWorld.getScoreboard().getTeam("fabricmod_army");
         return team != null ? team.getPlayerList() : null;
