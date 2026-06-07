@@ -29,10 +29,15 @@ public class DefendPlayerTargetGoal extends Goal {
     }
 
     /**
-     * 启动条件：玩家有攻击目标或被攻击。
+     * 启动条件：
+     * - 生物当前不在跟随移动中（navigation 空闲）
+     * - 玩家有攻击目标 或 玩家被攻击
      */
     @Override
     public boolean canStart() {
+        // —— 正在跟随移动途中 → 不攻击（等到达后再护卫） ——
+        if (mob.getNavigation().isActive()) return false;
+
         // ① 优先：玩家正在攻击的目标
         LivingEntity attacking = player.getAttacking();
         if (attacking != null && attacking.isAlive() && attacking != player) {
@@ -51,10 +56,11 @@ public class DefendPlayerTargetGoal extends Goal {
     }
 
     /**
-     * 持续条件：目标存活且玩家存活。
+     * 持续条件：目标存活、玩家存活、且生物不在跟随移动中。
      */
     @Override
     public boolean shouldContinue() {
+        if (mob.getNavigation().isActive()) return false;
         return target != null && target.isAlive()
                 && player != null && player.isAlive();
     }
@@ -71,10 +77,16 @@ public class DefendPlayerTargetGoal extends Goal {
     }
 
     /**
-     * 每 tick 执行：刷新目标，始终以玩家最新仇恨为准。
+     * 每 tick 执行：刷新目标。
+     * 若生物重新开始跟随移动，立即清除仇恨。
      */
     @Override
     public void tick() {
+        if (mob.getNavigation().isActive()) {
+            this.mob.setTarget(null);
+            return;
+        }
+
         // 检查玩家是否切换了攻击目标
         LivingEntity attacking = player.getAttacking();
         if (attacking != null && attacking.isAlive() && attacking != player) {
