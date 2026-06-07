@@ -402,7 +402,7 @@ public class LegendsCommandHandler {
         // 标记目标高亮（GLOW效果），持续 30 秒
         target.setGlowing(true);
         GLOWING_TARGETS.put(target.getUuid(),
-                target.getWorld().getServer().getTicks() + 600); // 30s = 600 ticks
+                target.getWorld().getServer().getTicks() + 600L); // 30s = 600 ticks
 
         // 粒子标记：目标头顶旋转光点
         if (target.getWorld() instanceof ServerWorld sw) {
@@ -520,8 +520,8 @@ public class LegendsCommandHandler {
                         return true;
                     }
                     // 目标已死亡也移除
-                    Entity ent = server.getEntity(e.getKey());
-                    if (ent == null || !ent.isAlive()) return true;
+                    Entity ent2 = server.getEntity(e.getKey());
+                    if (ent2 == null || !ent2.isAlive()) return true;
                     return false;
                 });
             }
