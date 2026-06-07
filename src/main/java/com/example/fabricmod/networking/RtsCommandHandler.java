@@ -58,8 +58,11 @@ public class RtsCommandHandler {
         if (mobs == null || mobs.isEmpty()) return;
         for (MobEntity m : mobs) {
             if (!m.isAlive()) continue;
-            resetState(m);
-            m.goalSelector.add(1, new RtsMoveGoal(m, target, 1.0));
+            m.getNavigation().stop();
+            m.setTarget(null);
+            m.targetSelector.clear(goal -> true);
+            m.goalSelector.clear(goal -> true);
+            m.goalSelector.add(0, new RtsMoveGoal(m, target, 1.0));
         }
         p.sendMessage(Text.literal("§e[RTS] §6" + mobs.size() + " §e个单位正在移动"), false);
     }
@@ -68,9 +71,15 @@ public class RtsCommandHandler {
         if (mobs == null || mobs.isEmpty()) return;
         for (MobEntity m : mobs) {
             if (!m.isAlive()) continue;
+            m.getNavigation().stop();
             m.setTarget(target);
+            // 清除旧目标选择器 + 锁定新目标
             m.targetSelector.clear(goal -> true);
             m.targetSelector.add(0, new LockOnGoal(m, target));
+            // 清除旧移动 AI + 添加追击 AI（覆盖 FollowOwnerGoal）
+            m.goalSelector.clear(goal -> true);
+            m.goalSelector.add(0, new net.minecraft.entity.ai.goal.MeleeAttackGoal(
+                    (net.minecraft.entity.mob.PathAwareEntity) m, 1.2, true));
         }
         p.sendMessage(Text.literal("§c[RTS] §6" + mobs.size()
                 + " §c个单位正在攻击 §e" + target.getName().getString()), false);
