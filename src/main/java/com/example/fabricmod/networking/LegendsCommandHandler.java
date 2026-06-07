@@ -128,7 +128,7 @@ public class LegendsCommandHandler {
             return ActionResult.FAIL;
         });
 
-        // 右键实体 → 攻击
+        // 右键实体 → 集火目标
         UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
             if (world.isClient) return ActionResult.PASS;
             if (!(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
@@ -136,7 +136,16 @@ public class LegendsCommandHandler {
             if (!(entity instanceof LivingEntity target)) return ActionResult.PASS;
             if (!canCommand(sp)) return ActionResult.PASS;
 
-            commandAttack(selectNearbyMobs(sp), target);
+            // 集火：只对当前跟随中的召唤物生效
+            List<MobEntity> followingMobs = getFollowingMobs(sp);
+            if (!followingMobs.isEmpty()) {
+                commandAttack(followingMobs, target);
+                sp.sendMessage(
+                    Text.literal("§c⚔ 集火目标：§e" + target.getName().getString()
+                        + " §c—— §6" + followingMobs.size() + " §c个单位正在攻击！"),
+                    false
+                );
+            }
             return ActionResult.FAIL;
         });
     }
@@ -209,6 +218,16 @@ public class LegendsCommandHandler {
      * 获取玩家当前跟随的召唤物数量。
      */
     public static int getFollowingCount(ServerPlayerEntity player) {
+    public static List<MobEntity> getFollowingMobs(ServerPlayerEntity player) {
+        List<MobEntity> result = new ArrayList<>();
+        List<UUID> uuids = FOLLOWING_MOBS.get(player.getUuid());
+        if (uuids == null) return result;
+        for (UUID uid : uuids) {
+            Entity e = player.getServerWorld().getEntity(uid);
+            if (e instanceof MobEntity m && m.isAlive()) result.add(m);
+        }
+        return result;
+    }
         List<UUID> list = FOLLOWING_MOBS.get(player.getUuid());
         return list == null ? 0 : list.size();
     }
