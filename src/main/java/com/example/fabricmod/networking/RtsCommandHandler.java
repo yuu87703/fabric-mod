@@ -72,9 +72,10 @@ public class RtsCommandHandler {
             resetState(m);
             m.setTarget(target);
             m.getNavigation().startMovingTo(target, 1.2);
-            m.goalSelector.add(2, new MeleeAttackGoal((net.minecraft.entity.mob.PathAwareEntity) m, 1.2, true));
-            // 锁定攻击目标（最高优先级，但不移除原有的 DefendPlayerTargetGoal）
-            m.targetSelector.add(1, new LockTargetGoal(m, target));
+            // MeleeAttackGoal priority 0 → 高于 FollowOwnerGoal (1) 和 RtsMoveGoal (1)
+            m.goalSelector.add(0, new MeleeAttackGoal((net.minecraft.entity.mob.PathAwareEntity) m, 1.2, true));
+            // LockTargetGoal priority 0 → 高于 DefendPlayerTargetGoal (1)
+            m.targetSelector.add(0, new LockTargetGoal(m, target));
         }
         p.sendMessage(Text.literal("§c[RTS] §6" + mobs.size()
                 + " §c个单位正在攻击 §e" + target.getName().getString()), false);
