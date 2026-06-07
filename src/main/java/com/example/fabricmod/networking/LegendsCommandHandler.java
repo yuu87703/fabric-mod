@@ -88,9 +88,12 @@ public class LegendsCommandHandler {
         });
         // 旗帜状态同步
         ServerPlayNetworking.registerGlobalReceiver(BannerStatePayload.ID, (payload, context) -> {
-            FabricMod.LOGGER.debug("Player {} {} banner",
-                    context.player().getName().getString(),
-                    payload.raised() ? "raised" : "lowered");
+            if (!payload.raised()) {
+                // 放下旗帜 → 移除跟随目标，恢复自主攻击
+                context.server().execute(() -> {
+                    onBannerLowered(context.player());
+                });
+            }
         });
     }
 
@@ -314,6 +317,35 @@ public class LegendsCommandHandler {
      */
     private static int countFollowingMobs(ServerPlayerEntity player) {
         return selectNearbyMobs(player).size();
+    }
+
+    /**
+     * 移除跟随目标：放下旗帜时调用。
+     * 清除 goalSelector 中的 FollowOwnerGoal，
+     * 添加 MeleeAttackGoal 让怪物能自主攻击，
+     * 保留 targetSelector 中的自动索敌和防御目标。
+     */
+    public static void removeFollowGoal(MobEntity mob) {
+        mob.goalSelector.clear(g -> true);
+        // 添加近战攻击 AI，使怪物能自主攻击目标选择器锁定的敌人
+        mob.goalSelector.add(0, new MeleeAttackGoal((PathAwareEntity) mob, 1.2, true));
+    }
+
+    /**
+     * 放下旗帜时，对所有跟随中的召唤物执行 removeFollowGoal。
+     */
+    public static void onBannerLowered(ServerPlayerEntity player) {
+        List<UUID> following = FOLLOWING_MOBS.get(player.getUuid());
+        if (following == null) return;
+
+        ServerWorld world = player.getServerWorld();
+        for (UUID mobUuid : following) {
+            Entity entity = world.getEntity(mobUuid);
+            if (entity instanceof MobEntity mob && mob.isAlive()) {
+                removeFollowGoal(mob);
+            }
+        }
+        // 注意：不清除 FOLLOWING_MOBS 列表，下次举起旗帜时可以继续使用
     }
 
     // ═══════════════════════════════════════════════════
