@@ -390,7 +390,29 @@ public class LegendsCommandHandler {
         }
     }
 
+    // 集火高亮目标跟踪（目标UUID → 过期tick）
+    private static final Map<UUID, Long> GLOWING_TARGETS = new HashMap<>();
+
     public static void commandAttack(List<MobEntity> mobs, LivingEntity target) {
+        if (mobs.isEmpty()) return;
+
+        // 标记目标高亮（GLOW效果），持续 30 秒
+        target.setGlowing(true);
+        GLOWING_TARGETS.put(target.getUuid(),
+                target.getWorld().getServer().getTicks() + 600); // 30s = 600 ticks
+
+        // 粒子标记：目标头顶旋转光点
+        if (target.getWorld() instanceof ServerWorld sw) {
+            for (int i = 0; i < 8; i++) {
+                double rad = i * Math.PI / 4;
+                sw.spawnParticles(ParticleTypes.END_ROD,
+                        target.getX() + 0.8 * Math.cos(rad),
+                        target.getY() + target.getHeight() + 0.5,
+                        target.getZ() + 0.8 * Math.sin(rad),
+                        1, 0, 0, 0, 0.02);
+            }
+        }
+
         for (MobEntity m : mobs) {
             if (!m.isAlive()) continue;
             m.getNavigation().stop();
@@ -485,6 +507,21 @@ public class LegendsCommandHandler {
     private static void registerBeaconCleanup() {
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
             if (ACTIVE_BEACONS.isEmpty()) return;
+            // 集火高亮过期清理
+            if (!GLOWING_TARGETS.isEmpty()) {
+                long now = server.getTicks();
+                GLOWING_TARGETS.entrySet().removeIf(e -> {
+                    if (e.getValue() <= now) {
+                        Entity ent = server.getEntity(e.getKey());
+                        if (ent != null) ent.setGlowing(false);
+                        return true;
+                    }
+                    // 目标已死亡也移除
+                    Entity ent = server.getEntity(e.getKey());
+                    if (ent == null || !ent.isAlive()) return true;
+                    return false;
+                });
+            }
             ACTIVE_BEACONS.entrySet().removeIf(entry -> {
                 net.minecraft.entity.decoration.ArmorStandEntity stand = entry.getValue();
                 if (!stand.isAlive()) return true;
