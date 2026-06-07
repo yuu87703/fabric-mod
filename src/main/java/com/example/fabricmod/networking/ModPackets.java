@@ -8,8 +8,10 @@ import net.minecraft.entity.EntityType;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.item.BannerItem;
 import net.minecraft.item.ItemStack;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.world.World;
 
@@ -44,54 +46,91 @@ public class ModPackets {
     }
 
     /**
+     * 在玩家周围显示半径为 5 格的圆形粒子边界并填充内部。
+     */
+    private static void showRangeAnimation(ServerPlayerEntity player) {
+        ServerWorld world = player.getServerWorld();
+        double cx = player.getX();
+        double cy = player.getY();
+        double cz = player.getZ();
+
+        // --- 边界圆环：半径 5 格，每隔 10° 一个粒子 ---
+        for (int deg = 0; deg < 360; deg += 10) {
+            double rad = Math.toRadians(deg);
+            double x = cx + 5 * Math.cos(rad);
+            double z = cz + 5 * Math.sin(rad);
+            world.spawnParticles(ParticleTypes.END_ROD,
+                    x, cy + 0.2, z, 1, 0, 0, 0, 0.01);
+        }
+
+        // --- 内部填充：圆内随机散布 60 个粒子（半径 0~5 均匀分布）---
+        for (int i = 0; i < 60; i++) {
+            double r = Math.sqrt(world.random.nextDouble()) * 5;
+            double rad = world.random.nextDouble() * 2 * Math.PI;
+            double x = cx + r * Math.cos(rad);
+            double z = cz + r * Math.sin(rad);
+            world.spawnParticles(ParticleTypes.END_ROD,
+                    x, cy + 0.2, z, 1, 0, 0, 0, 0.005);
+        }
+
+        // --- 中心标记：向上光柱 ---
+        for (int h = 0; h < 8; h++) {
+            world.spawnParticles(ParticleTypes.END_ROD,
+                    cx, cy + 0.5 + h * 0.5, cz,
+                    3, 0.3, 0, 0.3, 0.01);
+        }
+    }
+
+    /**
+     * 生成骷髅和僵尸，添加跟随 AI。
+     */
+    private static void spawnAndFollow(ServerPlayerEntity player) {
+        showRangeAnimation(player);
+
+        World world = player.getWorld();
+        int totalMobs = 8;
+
+        for (int i = 0; i < totalMobs; i++) {
+            double angle = world.random.nextDouble() * 2 * Math.PI;
+            double radius = Math.sqrt(world.random.nextDouble()) * 5;
+            double dx = radius * Math.cos(angle);
+            double dz = radius * Math.sin(angle);
+
+            double spawnX = player.getX() + dx;
+            double spawnZ = player.getZ() + dz;
+            double spawnY = player.getY();
+
+            MobEntity mob;
+            if (i % 2 == 0) {
+                mob = EntityType.SKELETON.create(world);
+            } else {
+                mob = EntityType.ZOMBIE.create(world);
+            }
+
+            if (mob != null) {
+                mob.setPosition(spawnX, spawnY, spawnZ);
+                mob.goalSelector.add(1, new FollowPlayerGoal(mob, player, 1.2, 2.0));
+                world.spawnEntity(mob);
+            }
+        }
+
+        player.sendMessage(
+                Text.literal("§c⚔ 旗帜挥动！你周围涌出了 §e" + totalMobs + " §c只怪物（骷髅 + 僵尸）！"),
+                false
+        );
+    }
+
+    /**
      * 在主线程上处理 G 键按下事件。
      */
     private static void handleGKeyPressed(ServerPlayerEntity player, String message) {
         FabricMod.LOGGER.info("Received G key packet from player {}: {}", player.getName().getString(), message);
 
-        // 检查玩家主手是否持有旗帜 (BannerItem)
         ItemStack mainHandStack = player.getMainHandStack();
 
         if (mainHandStack.getItem() instanceof BannerItem) {
-            // 主手持旗帜 → 在周围 0~5 格圆内随机生成骷髅和僵尸（各一半）
-            World world = player.getWorld();
-            int totalMobs = 8;  // 4 骷髅 + 4 僵尸
-
-            for (int i = 0; i < totalMobs; i++) {
-                // 在半径 0~5 的圆内均匀随机选点
-                double angle = world.random.nextDouble() * 2 * Math.PI;
-                double radius = Math.sqrt(world.random.nextDouble()) * 5;
-                double dx = radius * Math.cos(angle);
-                double dz = radius * Math.sin(angle);
-
-                double spawnX = player.getX() + dx;
-                double spawnZ = player.getZ() + dz;
-                double spawnY = player.getY();
-
-                // 按序号奇偶决定生成骷髅还是僵尸（各一半）
-                MobEntity mob;
-                if (i % 2 == 0) {
-                    mob = EntityType.SKELETON.create(world);
-                } else {
-                    mob = EntityType.ZOMBIE.create(world);
-                }
-
-                if (mob != null) {
-                    mob.setPosition(spawnX, spawnY, spawnZ);
-
-                    // 添加自定义目标：以 1.2 速度跟随玩家，距离 < 2 格时停止移动
-                    mob.goalSelector.add(1, new FollowPlayerGoal(mob, player, 1.2, 2.0));
-
-                    world.spawnEntity(mob);
-                }
-            }
-
-            player.sendMessage(
-                    Text.literal("§c⚔ 旗帜挥动！你周围涌出了 §e" + totalMobs + " §c只怪物（骷髅 + 僵尸）！"),
-                    false
-            );
+            spawnAndFollow(player);
         } else {
-            // 主手未持旗帜
             String itemName = mainHandStack.isEmpty()
                     ? "空手"
                     : mainHandStack.getName().getString();
