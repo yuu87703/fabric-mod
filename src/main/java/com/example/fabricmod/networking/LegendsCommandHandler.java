@@ -212,7 +212,8 @@ public class LegendsCommandHandler {
      */
     public static void clearFollowing(ServerPlayerEntity player) {
         FOLLOWING_MOBS.remove(player.getUuid());
-    }
+    /**
+     * 获取玩家当前跟随的召唤物数量。
      */
     public static int getFollowingCount(ServerPlayerEntity player) {
         List<UUID> list = FOLLOWING_MOBS.get(player.getUuid());
