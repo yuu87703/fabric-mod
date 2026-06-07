@@ -161,17 +161,17 @@ public class RtsCommandHandler {
         }
     }
 
-    // ──────── Helper: clear all goals from goalSelector & targetSelector ────────
-    // 1.21.1 GoalSelector doesn't have clear(). We use getGoals().clear() instead.
-    // GoalSelector 在 1.21.1 没有 clear() 方法，改用 getGoals().clear()。
+    // ──────── Helper: reset mob state without touching GoalSelector ────────
+    // GoalSelector in 1.21.1 doesn't expose a reliable clear() method.
+    // We just stop navigation and clear target — old goals will be overridden
+    // by new ones at priority 1 (highest).
+    // 1.21.1 的 GoalSelector 没有可靠的清空方法，直接停导航+清仇恨。
+    // 新添加的高优先级目标（priority 1）会自动覆盖旧目标。
 
     private static void resetGoals(MobEntity mob) {
-        try {
-            mob.goalSelector.getGoals().clear();
-        } catch (Exception ignored) {}
-        try {
-            mob.targetSelector.getGoals().clear();
-        } catch (Exception ignored) {}
+        mob.getNavigation().stop();
+        mob.setTarget(null);
+        mob.setAttacker(null);
     }
 
     // ═══════════════════════════════════════════════
