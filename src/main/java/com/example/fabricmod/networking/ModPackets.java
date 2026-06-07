@@ -85,11 +85,16 @@ public class ModPackets {
      * 注册右键交互回调：命令模式下右键=指挥。
      */
     private static void registerInteractionCallbacks() {
-        // 右键方块 → move 命令
+        // 右键方块 → move 命令（命令模式 或 手持旗帜/木棍）
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
             if (world.isClient) return ActionResult.PASS;
             if (!(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
-            if (!isInCommandMode(sp)) return ActionResult.PASS;
+            if (hand != net.minecraft.util.Hand.MAIN_HAND) return ActionResult.PASS;
+
+            boolean inCommandMode = isInCommandMode(sp);
+            boolean holdingBanner = sp.getMainHandStack().getItem() instanceof BannerItem;
+            boolean holdingStick = sp.getMainHandStack().getItem() == net.minecraft.item.Items.STICK;
+            if (!inCommandMode && !holdingBanner && !holdingStick) return ActionResult.PASS;
 
             BlockHitResult blockHit = (BlockHitResult) hitResult;
             Vec3d pos = blockHit.getBlockPos().toCenterPos();
@@ -97,7 +102,7 @@ public class ModPackets {
             List<MobEntity> selected = RtsCommandHandler.selectNearbyMobs(sp);
             RtsCommandHandler.commandMove(selected, sp, pos);
 
-            return ActionResult.FAIL;  // 阻止原版右键行为（如放置方块）
+            return ActionResult.FAIL;
         });
 
         // 右键实体 → attack 命令（两种模式：命令模式 或 手持旗帜/木棍直接指挥）
