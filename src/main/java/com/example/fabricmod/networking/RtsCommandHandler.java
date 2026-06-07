@@ -34,16 +34,76 @@ public class RtsCommandHandler {
     public static RtsCommandHandler getInstance() { return INSTANCE; }
 
     // ═══════════════════════════════════════════════
-    //  Selection — 选择单位
+    //  Faction — 阵营系统（敌我识别）
+    // ═══════════════════════════════════════════════
+    //  玩家 + 所有召唤物属于同一队伍 fabricmod_army
+    //  friendlyFire=false 防止误伤
+    //  selectNearbyMobs 通过队伍 UUID 过滤识别己方单位
+
+    private static final String ARMY_TEAM = "fabricmod_army";
+
+    /**
+     * 获取或创建军队队伍。
+     */
+    public static Team getOrCreateArmyTeam(ServerWorld world) {
+        net.minecraft.scoreboard.Scoreboard sb = world.getScoreboard();
+        Team t = sb.getTeam(ARMY_TEAM);
+        if (t == null) {
+            t = sb.addTeam(ARMY_TEAM);
+            t.setFriendlyFire(false);
+        }
+        return t;
+    }
+
+    /**
+     * 将实体加入军队阵营。玩家用名称，生物用 UUID。
+     */
+    public static void addToArmyTeam(Entity entity, ServerWorld world) {
+        Team team = getOrCreateArmyTeam(world);
+        String key = (entity instanceof net.minecraft.entity.player.PlayerEntity)
+                ? entity.getName().getString()
+                : entity.getUuidAsString();
+        team.getPlayerList().add(key);
+    }
+
+    /**
+     * 检查实体是否属于军队阵营。
+     */
+    public static boolean isInArmy(Entity entity, ServerWorld world) {
+        Team team = world.getScoreboard().getTeam(ARMY_TEAM);
+        if (team == null) return false;
+        String key = (entity instanceof net.minecraft.entity.player.PlayerEntity)
+                ? entity.getName().getString()
+                : entity.getUuidAsString();
+        return team.getPlayerList().contains(key);
+    }
+
+    /**
+     * 从军队阵营移除实体。
+     */
+    public static void removeFromArmyTeam(Entity entity, ServerWorld world) {
+        Team team = world.getScoreboard().getTeam(ARMY_TEAM);
+        if (team == null) return;
+        String key = (entity instanceof net.minecraft.entity.player.PlayerEntity)
+                ? entity.getName().getString()
+                : entity.getUuidAsString();
+        team.getPlayerList().remove(key);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Selection — 选择单位（按阵营识别）
     // ═══════════════════════════════════════════════
 
     public static List<MobEntity> selectNearbyMobs(ServerPlayerEntity player) {
         List<MobEntity> list = new ArrayList<>();
-        for (Entity e : player.getServerWorld().getEntitiesByClass(MobEntity.class,
+        ServerWorld world = player.getServerWorld();
+        Team armyTeam = world.getScoreboard().getTeam(ARMY_TEAM);
+        if (armyTeam == null) return list;
+
+        java.util.Set<String> members = armyTeam.getPlayerList();
+        for (Entity e : world.getEntitiesByClass(MobEntity.class,
                 player.getBoundingBox().expand(16),
-                e -> (e.getType() == net.minecraft.entity.EntityType.SKELETON
-                        || e.getType() == net.minecraft.entity.EntityType.ZOMBIE)
-                        && e.isAlive())) {
+                e -> e.isAlive() && members.contains(e.getUuidAsString()))) {
             list.add((MobEntity) e);
         }
         player.sendMessage(Text.literal("§e[RTS] §6" + list.size() + " §e个单位"), false);
