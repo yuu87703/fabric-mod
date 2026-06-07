@@ -72,7 +72,7 @@ public class RtsCommandHandler {
             resetState(m);
             m.setTarget(target);
             m.getNavigation().startMovingTo(target, 1.2);
-            m.goalSelector.add(2, new MeleeAttackGoal(m, 1.2, true));
+            m.goalSelector.add(2, new MeleeAttackGoal((net.minecraft.entity.mob.PathAwareEntity) m, 1.2, true));
             // 锁定攻击目标（最高优先级，但不移除原有的 DefendPlayerTargetGoal）
             m.targetSelector.add(1, new LockTargetGoal(m, target));
         }
