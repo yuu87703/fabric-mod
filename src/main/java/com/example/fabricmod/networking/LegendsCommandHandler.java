@@ -62,6 +62,7 @@ public class LegendsCommandHandler {
         registerReceivers();
         registerInteractionCallbacks();
         registerDamageEvents();
+        registerBeaconCleanup();
         FabricMod.LOGGER.info("LegendsCommandHandler initialized");
     }
 
@@ -403,39 +404,74 @@ public class LegendsCommandHandler {
      * 冲锋信标：在指定位置放置信标，激活所有召唤物的 ChargeTargetGoal，
      * 使它们优先攻击信标区域内的敌对生物。
      */
+    // 存储活跃的冲锋信标（用于定时移除）
+    private static final Map<UUID, net.minecraft.entity.decoration.ArmorStandEntity> ACTIVE_BEACONS = new HashMap<>();
+
     public static void commandCharge(ServerWorld world, Vec3d beaconPos, ServerPlayerEntity player) {
-        // 粒子效果：光柱标记信标位置
-        for (int h = 0; h < 16; h++) {
+        // ── ① 生成浮空旗帜信标（隐形盔甲架 + 旗帜头饰）──
+        net.minecraft.entity.decoration.ArmorStandEntity beacon = new net.minecraft.entity.decoration.ArmorStandEntity(
+                world, beaconPos.x, beaconPos.y - 0.5, beaconPos.z);
+        beacon.setInvisible(true);
+        beacon.setNoGravity(true);
+        beacon.setInvulnerable(true);
+        beacon.equipStack(net.minecraft.entity.EquipmentSlot.HEAD,
+                new net.minecraft.item.ItemStack(net.minecraft.item.Items.RED_BANNER));
+        world.spawnEntity(beacon);
+        ACTIVE_BEACONS.put(beacon.getUuid(), beacon);
+
+        // ── ② 粒子效果：火焰光柱 + 魂火环 ──
+        for (int h = 0; h < 20; h++) {
             world.spawnParticles(net.minecraft.particle.ParticleTypes.FLAME,
-                    beaconPos.x, beaconPos.y + h * 0.5, beaconPos.z,
-                    2, 0.2, 0, 0.2, 0.02);
+                    beaconPos.x, beaconPos.y + h * 0.4, beaconPos.z,
+                    2, 0.3, 0, 0.3, 0.03);
+        }
+        for (int deg = 0; deg < 360; deg += 15) {
+            double rad = Math.toRadians(deg);
             world.spawnParticles(net.minecraft.particle.ParticleTypes.SOUL_FIRE_FLAME,
-                    beaconPos.x, beaconPos.y + h * 0.5, beaconPos.z,
-                    1, 0.1, 0, 0.1, 0.01);
+                    beaconPos.x + 2.5 * Math.cos(rad), beaconPos.y + 0.3,
+                    beaconPos.z + 2.5 * Math.sin(rad),
+                    1, 0, 0, 0, 0.02);
         }
 
-        // 对所有己方召唤物激活 ChargeTargetGoal
+        // ── ③ 激活附近召唤物的冲锋 AI ──
         List<MobEntity> mobs = selectNearbyMobs(player);
         for (MobEntity m : mobs) {
             if (!m.isAlive()) continue;
-            // 遍历 targetSelector，找到 ChargeTargetGoal 并激活
             m.goalSelector.clear(g -> true);
             m.goalSelector.add(0, new MeleeAttackGoal((PathAwareEntity) m, 1.3, true));
-            // 通过反射或重新绑定来激活冲锋——ChargeTargetGoal 需要信标位置
-            // 最简单：重新绑定目标选择器，让 ChargeTargetGoal 激活
             activateChargeOnMob(m, beaconPos);
         }
     }
 
     private static void activateChargeOnMob(MobEntity mob, Vec3d beaconPos) {
-        // 替换 targetSelector：清除旧目标，重新绑定带激活信标的 ChargeTargetGoal
-        // 保留 p2 AutoTargetGoal 作为后备
         mob.targetSelector.clear(g -> true);
         mob.targetSelector.add(0, new LockOnGoalWrapper(mob));
         ChargeTargetGoal charge = new ChargeTargetGoal(mob);
         charge.activate(beaconPos);
         mob.targetSelector.add(1, charge);
         mob.targetSelector.add(2, new AutoTargetGoal(mob));
+    }
+
+    /**
+     * 初始化信标过期清理（在 initialize 中注册）。
+     */
+    private static void registerBeaconCleanup() {
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
+            if (ACTIVE_BEACONS.isEmpty()) return;
+            long now = server.getTicks();
+            ACTIVE_BEACONS.entrySet().removeIf(entry -> {
+                net.minecraft.entity.decoration.ArmorStandEntity stand = entry.getValue();
+                if (!stand.isAlive()) return true;
+                // 8 秒 = 160 tick 后移除
+                if (stand.getAge() > 160) {
+                    stand.remove(net.minecraft.entity.Entity.RemovalReason.DISCARDED);
+                    // 清除该信标关联的 ChargeTargetGoal
+                    // （ChargeTargetGoal 的 active 状态会在目标死亡或距离过远时自然失效）
+                    return true;
+                }
+                return false;
+            });
+        });
     }
 
     // ═══════════════════════════════════════════════════
