@@ -69,12 +69,8 @@ public class RtsCommandHandler {
         if (mobs == null || mobs.isEmpty()) return;
         for (MobEntity m : mobs) {
             if (!m.isAlive()) continue;
-            resetState(m);
             m.setTarget(target);
-            m.getNavigation().startMovingTo(target, 1.2);
-            // MeleeAttackGoal priority 0 → 高于 FollowOwnerGoal (1) 和 RtsMoveGoal (1)
-            m.goalSelector.add(0, new MeleeAttackGoal((net.minecraft.entity.mob.PathAwareEntity) m, 1.2, true));
-            // LockTargetGoal priority 0 → 高于 DefendPlayerTargetGoal (1)
+            m.targetSelector.clear();
             m.targetSelector.add(0, new LockTargetGoal(m, target));
         }
         p.sendMessage(Text.literal("§c[RTS] §6" + mobs.size()
