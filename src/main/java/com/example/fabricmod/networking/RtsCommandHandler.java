@@ -3,6 +3,7 @@ package com.example.fabricmod.networking;
 import com.example.fabricmod.entity.goal.DefendPlayerTargetGoal;
 import com.example.fabricmod.entity.goal.FollowOwnerGoal;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.ai.goal.MeleeAttackGoal;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.mob.MobEntity;
@@ -11,6 +12,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
 
+import net.minecraft.scoreboard.Team;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -70,6 +72,9 @@ public class RtsCommandHandler {
             resetState(m);
             m.setTarget(target);
             m.getNavigation().startMovingTo(target, 1.2);
+            m.goalSelector.add(2, new MeleeAttackGoal(m, 1.2, true));
+            // 锁定攻击目标（最高优先级，但不移除原有的 DefendPlayerTargetGoal）
+            m.targetSelector.add(1, new LockTargetGoal(m, target));
         }
         p.sendMessage(Text.literal("§c[RTS] §6" + mobs.size()
                 + " §c个单位正在攻击 §e" + target.getName().getString()), false);
@@ -111,6 +116,51 @@ public class RtsCommandHandler {
     private static void resetState(MobEntity mob) {
         mob.getNavigation().stop();
         mob.setTarget(null);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Inner class: LockTargetGoal (优先于 DefendPlayerTargetGoal)
+    // ═══════════════════════════════════════════════
+    //  Manually specified attack target — priority 0 (highest).
+    //  Will not remove the auto-defend goal (priority 1), but takes precedence.
+    //  手动指定的攻击目标，优先级 0（最高），不覆盖自动防御目标。
+
+    public static class LockTargetGoal extends Goal {
+        private final MobEntity mob;
+        private final LivingEntity target;
+
+        public LockTargetGoal(MobEntity mob, LivingEntity target) {
+            this.mob = mob;
+            this.target = target;
+            this.setControls(EnumSet.of(Control.TARGET));
+        }
+
+        @Override
+        public boolean canStart() {
+            return target != null && target.isAlive();
+        }
+
+        @Override
+        public boolean shouldContinue() {
+            return target != null && target.isAlive();
+        }
+
+        @Override
+        public void start() {
+            mob.setTarget(target);
+        }
+
+        @Override
+        public void stop() {
+            // Don't clear target here — let DefendPlayerTargetGoal take over
+        }
+
+        @Override
+        public void tick() {
+            if (target != null && target.isAlive()) {
+                mob.setTarget(target);
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════

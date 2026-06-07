@@ -100,15 +100,29 @@ public class ModPackets {
             return ActionResult.FAIL;  // 阻止原版右键行为（如放置方块）
         });
 
-        // 右键实体 → attack 命令
+        // 右键实体 → attack 命令（两种模式：命令模式 或 手持旗帜/木棍直接指挥）
         UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
             if (world.isClient) return ActionResult.PASS;
             if (!(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
-            if (!isInCommandMode(sp)) return ActionResult.PASS;
             if (!(entity instanceof LivingEntity target)) return ActionResult.PASS;
+
+            // 只处理主手
+            if (hand != net.minecraft.util.Hand.MAIN_HAND) return ActionResult.PASS;
+
+            boolean inCommandMode = isInCommandMode(sp);
+            boolean holdingBanner = sp.getMainHandStack().getItem() instanceof BannerItem;
+            boolean holdingStick = sp.getMainHandStack().getItem() == net.minecraft.item.Items.STICK;
+
+            // 条件：命令模式下 或 手持旗帜/木棍
+            if (!inCommandMode && !holdingBanner && !holdingStick) return ActionResult.PASS;
 
             List<MobEntity> selected = RtsCommandHandler.selectNearbyMobs(sp);
             RtsCommandHandler.commandAttack(selected, sp, target);
+
+            sp.sendMessage(
+                    Text.literal("§c[RTS] §6" + selected.size() + " §c个单位正在攻击 §e" + target.getName().getString()),
+                    true
+            );
 
             return ActionResult.FAIL;  // 阻止原版右键交互
         });
