@@ -84,20 +84,26 @@ public class ModPackets {
     }
 
     /**
-     * 为生成的生物添加 AI 目标：跟随玩家 + 攻击玩家目标。
+     * 为生成的生物绑定 AI（方法声明）。
+     * 优先级说明：
+     *   goalSelector 优先级 1 — 跟随玩家移动（最高，覆盖默认游荡）
+     *   targetSelector 优先级 1 — 攻击玩家目标（最高，覆盖默认目标）
      */
     private static void addGoalToEntity(MobEntity entity, ServerPlayerEntity player) {
-        // 防止亡灵生物在阳光下自燃（给予永久火抗效果）
+        // —— ③ 防燃烧：给予永久火焰抗性，防止亡灵在阳光下自燃 ——
         entity.addStatusEffect(new StatusEffectInstance(
                 StatusEffects.FIRE_RESISTANCE,
-                StatusEffectInstance.INFINITE,
-                0, false, false, false
+                StatusEffectInstance.INFINITE,  // 永久持续
+                0,                              // 等级 I
+                false,                          // 非环境效果
+                false,                          // 不显示粒子
+                false                           // 不显示图标
         ));
 
-        // 移动/行为目标：以 1.2 速度跟随玩家，距离 < 2 格时停止
+        // —— ① 跟随：以 1.2 速度走向玩家，距离 < 2 格时停止（避免挤撞） ——
         entity.goalSelector.add(1, new FollowPlayerGoal(entity, player, 1.2, 2.0));
 
-        // 目标选择器：攻击玩家正在攻击的实体，或攻击玩家的实体
+        // —— ② 护卫：攻击玩家正在攻击的目标，或攻击玩家的实体 ——
         entity.targetSelector.add(1, new DefendPlayerTargetGoal(entity, player));
     }
 

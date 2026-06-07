@@ -8,9 +8,13 @@ import net.minecraft.entity.player.PlayerEntity;
 import java.util.EnumSet;
 
 /**
- * 自定义目标：怪物会攻击玩家当前的攻击目标（getAttacking），
- * 或攻击对玩家造成伤害的敌对实体（getAttacker）。
- * 基于 TargetGoal 实现。
+ * 护卫目标（基于 TargetGoal）
+ *
+ * 优先级：
+ *   ① 优先攻击玩家正在攻击的目标（player.getAttacking()）
+ *   ② 其次攻击最近伤害了玩家的实体（player.getAttacker()）
+ *
+ * tick 逻辑：每帧刷新，始终追踪玩家最新的敌对目标。
  */
 public class DefendPlayerTargetGoal extends TargetGoal {
 
@@ -18,11 +22,14 @@ public class DefendPlayerTargetGoal extends TargetGoal {
     private LivingEntity target;
 
     public DefendPlayerTargetGoal(MobEntity mob, PlayerEntity player) {
-        super(mob, false, false);
+        super(mob, false, false);            // 不检查视线、不检查寻路
         this.player = player;
         this.setControls(EnumSet.of(Control.TARGET));
     }
 
+    /**
+     * 启动条件：玩家有攻击目标或被攻击。
+     */
     @Override
     public boolean canStart() {
         // ① 优先：玩家正在攻击的目标
@@ -42,6 +49,9 @@ public class DefendPlayerTargetGoal extends TargetGoal {
         return false;
     }
 
+    /**
+     * 持续条件：目标存活且玩家存活。
+     */
     @Override
     public boolean shouldContinue() {
         return target != null && target.isAlive()
@@ -61,9 +71,12 @@ public class DefendPlayerTargetGoal extends TargetGoal {
         super.stop();
     }
 
+    /**
+     * 每 tick 执行：刷新目标，始终以玩家最新仇恨为准。
+     */
     @Override
     public void tick() {
-        // 每 tick 刷新目标
+        // 检查玩家是否切换了攻击目标
         LivingEntity attacking = player.getAttacking();
         if (attacking != null && attacking.isAlive() && attacking != player) {
             target = attacking;
@@ -71,6 +84,7 @@ public class DefendPlayerTargetGoal extends TargetGoal {
             return;
         }
 
+        // 检查玩家是否被新的实体攻击
         LivingEntity attacker = player.getAttacker();
         if (attacker != null && attacker.isAlive() && attacker != player) {
             target = attacker;
@@ -78,6 +92,7 @@ public class DefendPlayerTargetGoal extends TargetGoal {
             return;
         }
 
+        // 目标已死亡或无效 → 清除
         if (target == null || !target.isAlive()) {
             this.mob.setTarget(null);
         }
