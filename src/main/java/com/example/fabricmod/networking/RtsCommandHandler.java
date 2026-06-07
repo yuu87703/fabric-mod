@@ -57,7 +57,7 @@ public class RtsCommandHandler {
     }
 
     public static void addPlayerToTeam(ServerPlayerEntity player) {
-        ServerWorld w = player.getServerWorld();
+        ServerWorld w = (ServerWorld) player.getWorld();
         Scoreboard sb = w.getScoreboard();
         net.minecraft.scoreboard.Team team = getOrCreateOwnerTeam(w);
         String name = player.getName().getString();
@@ -71,9 +71,9 @@ public class RtsCommandHandler {
         Scoreboard sb = world.getScoreboard();
         net.minecraft.scoreboard.Team team = getOrCreateSummonTeam(world);
         String key = mob.getUuidAsString();
-        net.minecraft.scoreboard.Team cur = sb.getTeam(key);
-        if (cur != null && !cur.getName().equals(team.getName()))
-            sb.removePlayerFromTeam(key, cur);
+        net.minecraft.scoreboard.Team currentTeam = sb.getPlayerTeam(key);
+        if (currentTeam != null && !currentTeam.getName().equals(team.getName()))
+            sb.removePlayerFromTeam(key, currentTeam);
         sb.addPlayerToTeam(key, team);
     }
 
@@ -198,17 +198,17 @@ public class RtsCommandHandler {
         }
 
         @Override public boolean canStart() {
-            return mob.distanceTo(target.x, target.y, target.z) > stopDistance;
+            return mob.squaredDistanceTo(target) > stopDistance * stopDistance;
         }
         @Override public boolean shouldContinue() {
-            return mob.distanceTo(target.x, target.y, target.z) > stopDistance;
+            return mob.squaredDistanceTo(target) > stopDistance * stopDistance;
         }
         @Override public void start() {
             mob.getNavigation().startMovingTo(target.x, target.y, target.z, speed);
         }
         @Override public void stop() { mob.getNavigation().stop(); }
         @Override public void tick() {
-            if (mob.distanceTo(target.x, target.y, target.z) > stopDistance)
+            if (mob.squaredDistanceTo(target) > stopDistance * stopDistance)
                 mob.getNavigation().startMovingTo(target.x, target.y, target.z, speed);
             else mob.getNavigation().stop();
         }
