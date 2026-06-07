@@ -14,7 +14,7 @@ import java.util.EnumSet;
  * - 距离超过 teleportDistance 时传送到玩家附近（类驯服马传送机制）
  * - 不强行锁定视角，保留生物自然转头行为
  */
-public class FollowPlayerGoal extends Goal {
+public class FollowOwnerGoal extends Goal {
 
     private final MobEntity mob;
     private final PlayerEntity player;
@@ -24,13 +24,13 @@ public class FollowPlayerGoal extends Goal {
     private int cooldown;
 
     /**
-     * @param mob              要添加该目标的生物
-     * @param player           要跟随的玩家
+     * @param mob              要跟随的生物
+     * @param player           要跟随的玩家（主人）
      * @param speed            移动速度（如 1.2）
-     * @param stopDistance     距离玩家小于此值时停止移动
-     * @param teleportDistance 距离超过此值时传送回玩家身边（默认 12）
+     * @param stopDistance     距离主人小于此值时停止移动
+     * @param teleportDistance 距离超过此值时传送回主人身边（默认 12）
      */
-    public FollowPlayerGoal(MobEntity mob, PlayerEntity player, double speed,
+    public FollowOwnerGoal(MobEntity mob, PlayerEntity player, double speed,
                             double stopDistance, double teleportDistance) {
         this.mob = mob;
         this.player = player;
@@ -40,7 +40,7 @@ public class FollowPlayerGoal extends Goal {
         this.setControls(EnumSet.of(Control.MOVE));  // 不占用 LOOK，保留自然转头
     }
 
-    public FollowPlayerGoal(MobEntity mob, PlayerEntity player, double speed, double stopDistance) {
+    public FollowOwnerGoal(MobEntity mob, PlayerEntity player, double speed, double stopDistance) {
         this(mob, player, speed, stopDistance, 12.0);
     }
 

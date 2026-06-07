@@ -1,7 +1,7 @@
 package com.example.fabricmod.networking;
 
 import com.example.fabricmod.FabricMod;
-import com.example.fabricmod.entity.goal.FollowPlayerGoal;
+import com.example.fabricmod.entity.goal.FollowOwnerGoal;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.EntityType;
@@ -101,7 +101,7 @@ public class ModPackets {
         ));
 
         // —— ① 跟随：以 1.2 速度走向玩家，距离 < 2 格时停止（避免挤撞） ——
-        entity.goalSelector.add(1, new FollowPlayerGoal(entity, player, 1.2, 2.0));
+        entity.goalSelector.add(1, new FollowOwnerGoal(entity, player, 1.2, 2.0));
 
         // —— ② 护卫：攻击玩家正在攻击的目标，或攻击玩家的实体 ——
         entity.targetSelector.add(1, new DefendPlayerTargetGoal(entity, player));
