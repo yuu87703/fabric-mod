@@ -1,6 +1,7 @@
 package com.example.fabricmod.networking;
 
 import com.example.fabricmod.FabricMod;
+import com.example.fabricmod.entity.goal.DefendPlayerTargetGoal;
 import com.example.fabricmod.entity.goal.FollowOwnerGoal;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
