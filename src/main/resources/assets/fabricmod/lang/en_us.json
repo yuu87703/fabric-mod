@@ -1,0 +1,7 @@
+{
+  "modmenu.nameTranslation.fabricmod": "Fabric Mod",
+  "modmenu.descriptionTranslation.fabricmod": "A Fabric mod for Minecraft 1.21.1",
+
+  "key.fabricmod.g_key": "Send Signal (G)",
+  "category.fabricmod": "Fabric Mod"
+}

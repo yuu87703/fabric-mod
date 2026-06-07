@@ -1,0 +1,38 @@
+name: Build Fabric Mod
+
+# 触发条件
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:          # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout 仓库
+        uses: actions/checkout@v4
+
+      - name: 设置 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: 'temurin'
+
+      - name: 设置 Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: 生成 Gradle Wrapper
+        run: gradle wrapper --gradle-version 8.10.2
+
+      - name: 编译模组
+        run: ./gradlew build
+
+      - name: 上传 JAR 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabricmod-jar
+          path: build/libs/*.jar

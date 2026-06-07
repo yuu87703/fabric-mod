@@ -1,0 +1,7 @@
+{
+  "modmenu.nameTranslation.fabricmod": "Fabric 模组",
+  "modmenu.descriptionTranslation.fabricmod": "一个 Minecraft 1.21.1 的 Fabric 模组",
+
+  "key.fabricmod.g_key": "发送信号 (G)",
+  "category.fabricmod": "Fabric 模组"
+}
