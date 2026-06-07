@@ -32,7 +32,7 @@ public class AutoTargetGoal extends Goal {
     }
 
     public AutoTargetGoal(MobEntity mob) {
-        this(mob, 12.0, 40);
+        this(mob, 16.0, 30);  // 16 格半径，每秒扫描
     }
 
     @Override
