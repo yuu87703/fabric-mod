@@ -90,22 +90,25 @@ public class LegendsCommandHandler {
         });
         // 旗帜状态同步
         ServerPlayNetworking.registerGlobalReceiver(BannerStatePayload.ID, (payload, context) -> {
+        ServerPlayNetworking.registerGlobalReceiver(BannerStatePayload.ID, (payload, context) -> {
             if (!payload.raised()) {
-                // 放下旗帜 → 移除跟随目标，恢复自主攻击
                 context.server().execute(() -> {
                     onBannerLowered(context.player());
                 });
-        // 冲锋信标包
-        ServerPlayNetworking.registerGlobalReceiver(ChargePayload.ID, (chargePayload, context) -> {
-            ServerPlayerEntity p = context.player();
-            context.server().execute(() -> {
-                commandCharge(p.getServerWorld(), payload.toVec3d(), p);
-            });
-        });
             }
+        });
+        // 冲锋信标包
+        ServerPlayNetworking.registerGlobalReceiver(ChargePayload.ID, (chargePayload, c2) -> {
+            ServerPlayerEntity p = c2.player();
+            c2.server().execute(() -> {
+                commandCharge(p.getServerWorld(), chargePayload.toVec3d(), p);
+            });
         });
     }
 
+    private static boolean isInCommandMode(ServerPlayerEntity p) {
+        return COMMAND_MODE_PLAYERS.contains(p.getUuid());
+    }
     private static boolean isInCommandMode(ServerPlayerEntity p) {
         return COMMAND_MODE_PLAYERS.contains(p.getUuid());
     }
@@ -418,8 +421,9 @@ public class LegendsCommandHandler {
         GLOWING_TARGETS.put(target.getUuid(),
                 target.getWorld().getServer().getTicks() + 600L);
 
-        // 粒子标记
+        // 粒子标记：持续高亮目标
         if (target.getWorld() instanceof ServerWorld sw) {
+            // 头顶旋转环（END_ROD）
             for (int i = 0; i < 8; i++) {
                 double rad = i * Math.PI / 4;
                 sw.spawnParticles(ParticleTypes.END_ROD,
@@ -428,6 +432,10 @@ public class LegendsCommandHandler {
                         target.getZ() + 0.8 * Math.sin(rad),
                         1, 0, 0, 0, 0.02);
             }
+            // 脚下爆炸光点（TOTEM_OF_UNDYING）
+            sw.spawnParticles(ParticleTypes.TOTEM_OF_UNDYING,
+                    target.getX(), target.getY() + 0.1, target.getZ(),
+                    15, 0.5, 0, 0.5, 0.5);
         }
 
         // 为所有跟随生物绑定 LockOnGoalWrapper（自动从 FOCUS_TARGETS 读取）
