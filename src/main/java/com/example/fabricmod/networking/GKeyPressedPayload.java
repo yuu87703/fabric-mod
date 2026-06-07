@@ -17,7 +17,7 @@ public record GKeyPressedPayload(String message) implements CustomPayload {
 
     // 包的唯一标识符
     public static final CustomPayload.Id<GKeyPressedPayload> ID =
-            new CustomPayload.Id<>(new Identifier(FabricMod.MOD_ID, "g_key_pressed"));
+            new CustomPayload.Id<>(Identifier.of(FabricMod.MOD_ID, "g_key_pressed"));
 
     // 序列化/反序列化编解码器
     public static final PacketCodec<PacketByteBuf, GKeyPressedPayload> CODEC =
