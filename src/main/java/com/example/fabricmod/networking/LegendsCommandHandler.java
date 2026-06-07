@@ -90,7 +90,6 @@ public class LegendsCommandHandler {
         });
         // 旗帜状态同步
         ServerPlayNetworking.registerGlobalReceiver(BannerStatePayload.ID, (payload, context) -> {
-        ServerPlayNetworking.registerGlobalReceiver(BannerStatePayload.ID, (payload, context) -> {
             if (!payload.raised()) {
                 context.server().execute(() -> {
                     onBannerLowered(context.player());
