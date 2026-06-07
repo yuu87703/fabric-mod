@@ -1,6 +1,7 @@
 package com.example.fabricmod.client;
 
 import com.example.fabricmod.FabricMod;
+import com.example.fabricmod.networking.BannerStatePayload;
 import com.example.fabricmod.networking.CommandModePayload;
 import com.example.fabricmod.networking.GKeyPressedPayload;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -8,13 +9,13 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.item.BannerItem;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * 按键绑定：
- *   G → 召唤（持旗帜时）
- *   R → 切换 RTS 命令模式（再次按关闭）
- *   命令模式下右键地面/实体 → 执行 move/attack
+ * 按键绑定 + 旗帜状态同步
+ *
+ * 每 tick 检测玩家是否手持旗帜，状态变化时发送 BannerStatePayload 到服务端。
  */
 public class ModKeyBindings {
 
@@ -27,16 +28,29 @@ public class ModKeyBindings {
             "category.fabricmod"));
 
     private static boolean commandModeActive = false;
+    private static boolean lastBannerRaised = false;  // 上次帧的旗帜状态
 
-    public static boolean isCommandModeActive() {
-        return commandModeActive;
-    }
+    public static boolean isCommandModeActive() { return commandModeActive; }
 
     public static void register() {
         FabricMod.LOGGER.info("Registering key bindings...");
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client.getNetworkHandler() == null) return;
+            if (client.getNetworkHandler() == null || client.player == null) return;
+
+            // ─── 旗帜状态检测：举起/放下时同步到服务端 ───
+            boolean nowRaised = client.player.getMainHandStack().getItem() instanceof BannerItem;
+            if (nowRaised != lastBannerRaised) {
+                lastBannerRaised = nowRaised;
+                ClientPlayNetworking.send(new BannerStatePayload(nowRaised));
+                if (nowRaised) {
+                    client.player.sendMessage(
+                            net.minecraft.text.Text.literal("§a⬆ 举起旗帜 — 召唤物跟随中"), true);
+                } else {
+                    client.player.sendMessage(
+                            net.minecraft.text.Text.literal("§7⬇ 放下旗帜 — 召唤物原地待命"), true);
+                }
+            }
 
             // G 键 → 召唤
             while (G_KEY.wasPressed()) {
@@ -47,17 +61,12 @@ public class ModKeyBindings {
             while (R_KEY.wasPressed()) {
                 commandModeActive = !commandModeActive;
                 ClientPlayNetworking.send(new CommandModePayload(commandModeActive));
-
                 if (commandModeActive) {
                     client.player.sendMessage(
-                            net.minecraft.text.Text.literal("§e[RTS] 命令模式 §a开启§e — 右键地面=移动, 右键实体=攻击"),
-                            true
-                    );
+                            net.minecraft.text.Text.literal("§e[RTS] 命令模式 §a开启§e"), true);
                 } else {
                     client.player.sendMessage(
-                            net.minecraft.text.Text.literal("§7[RTS] 命令模式已关闭"),
-                            true
-                    );
+                            net.minecraft.text.Text.literal("§7[RTS] 命令模式已关闭"), true);
                 }
             }
         });

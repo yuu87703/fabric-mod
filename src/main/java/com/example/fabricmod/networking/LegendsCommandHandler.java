@@ -69,6 +69,7 @@ public class LegendsCommandHandler {
     private static void registerPayloads() {
         PayloadTypeRegistry.playC2S().register(GKeyPressedPayload.ID, GKeyPressedPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(CommandModePayload.ID, CommandModePayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(BannerStatePayload.ID, BannerStatePayload.CODEC);
     }
 
     private static void registerReceivers() {
@@ -81,6 +82,12 @@ public class LegendsCommandHandler {
             ServerPlayerEntity p = context.player();
             if (payload.active()) COMMAND_MODE_PLAYERS.add(p.getUuid());
             else COMMAND_MODE_PLAYERS.remove(p.getUuid());
+        });
+        // 旗帜状态同步
+        ServerPlayNetworking.registerGlobalReceiver(BannerStatePayload.ID, (payload, context) -> {
+            FabricMod.LOGGER.debug("Player {} {} banner",
+                    context.player().getName().getString(),
+                    payload.raised() ? "raised" : "lowered");
         });
     }
 
