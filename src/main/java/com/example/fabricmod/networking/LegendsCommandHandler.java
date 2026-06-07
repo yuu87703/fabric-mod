@@ -515,12 +515,12 @@ public class LegendsCommandHandler {
                 long now = server.getTicks();
                 GLOWING_TARGETS.entrySet().removeIf(e -> {
                     if (e.getValue() <= now) {
-                        Entity ent = server.getEntity(e.getKey());
+                        Entity ent = getEntityByUuid(server, e.getKey());
                         if (ent != null) ent.setGlowing(false);
                         return true;
                     }
                     // 目标已死亡也移除
-                    Entity ent2 = server.getEntity(e.getKey());
+                    Entity ent2 = getEntityByUuid(server, e.getKey());
                     if (ent2 == null || !ent2.isAlive()) return true;
                     return false;
                 });
@@ -557,6 +557,17 @@ public class LegendsCommandHandler {
         player.sendMessage(
                 Text.literal("§7⬆ 冲锋结束，召唤物回到跟随状态"), false);
     }
+    /**
+     * 跨世界查找实体。
+     */
+    private static Entity getEntityByUuid(net.minecraft.server.MinecraftServer server, UUID uuid) {
+        for (ServerWorld w : server.getWorlds()) {
+            Entity e = w.getEntity(uuid);
+            if (e != null) return e;
+        }
+        return null;
+    }
+
     //  内部类
     // ═══════════════════════════════════════════════════
 
