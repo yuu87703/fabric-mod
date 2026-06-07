@@ -3,9 +3,12 @@ package com.example.fabricmod.networking;
 import com.example.fabricmod.FabricMod;
 import com.example.fabricmod.entity.goal.DefendPlayerTargetGoal;
 import com.example.fabricmod.entity.goal.FollowOwnerGoal;
+import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.MobEntity;
@@ -16,7 +19,16 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.util.ActionResult;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.EntityHitResult;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * 自定义网络包注册 —— 服务端接收来自客户端的数据包。
@@ -24,27 +36,81 @@ import net.minecraft.world.World;
  */
 public class ModPackets {
 
+    // 命令模式：记录哪些玩家处于 RTS 命令模式
+    private static final Set<UUID> COMMAND_MODE_PLAYERS = new HashSet<>();
+
+    public static boolean isInCommandMode(ServerPlayerEntity player) {
+        return COMMAND_MODE_PLAYERS.contains(player.getUuid());
+    }
+
     /**
      * 先向 Fabric API 声明数据包类型（必须！否则崩溃）。
      */
     public static void registerPayload() {
         FabricMod.LOGGER.info("Registering payload type: {}", GKeyPressedPayload.ID.id());
         PayloadTypeRegistry.playC2S().register(GKeyPressedPayload.ID, GKeyPressedPayload.CODEC);
+
+        FabricMod.LOGGER.info("Registering payload type: {}", CommandModePayload.ID.id());
+        PayloadTypeRegistry.playC2S().register(CommandModePayload.ID, CommandModePayload.CODEC);
     }
 
     /**
-     * 注册服务端接收器。
-     * 此方法在 ModInitializer.onInitialize() 中调用。
+     * 注册服务端接收器 + 交互回调。
      */
     public static void registerC2SPackets() {
         FabricMod.LOGGER.info("Registering server-bound packet receivers...");
 
+        // G 键 → 召唤
         ServerPlayNetworking.registerGlobalReceiver(GKeyPressedPayload.ID, (payload, context) -> {
-            // 此回调在网络线程中执行
             MinecraftServer server = context.server();
             ServerPlayerEntity player = context.player();
-
             server.execute(() -> handleGKeyPressed(player, payload.message()));
+        });
+
+        // R 键 → 切换命令模式
+        ServerPlayNetworking.registerGlobalReceiver(CommandModePayload.ID, (payload, context) -> {
+            ServerPlayerEntity player = context.player();
+            if (payload.active()) {
+                COMMAND_MODE_PLAYERS.add(player.getUuid());
+            } else {
+                COMMAND_MODE_PLAYERS.remove(player.getUuid());
+            }
+        });
+
+        // 命令模式下的右键交互
+        registerInteractionCallbacks();
+    }
+
+    /**
+     * 注册右键交互回调：命令模式下右键=指挥。
+     */
+    private static void registerInteractionCallbacks() {
+        // 右键方块 → move 命令
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
+            if (world.isClient) return ActionResult.PASS;
+            if (!(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
+            if (!isInCommandMode(sp)) return ActionResult.PASS;
+
+            BlockHitResult blockHit = (BlockHitResult) hitResult;
+            Vec3d pos = blockHit.getBlockPos().toCenterPos();
+
+            List<MobEntity> selected = RtsCommandHandler.selectNearbyMobs(sp);
+            RtsCommandHandler.commandMove(selected, sp, pos);
+
+            return ActionResult.FAIL;  // 阻止原版右键行为（如放置方块）
+        });
+
+        // 右键实体 → attack 命令
+        UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
+            if (world.isClient) return ActionResult.PASS;
+            if (!(player instanceof ServerPlayerEntity sp)) return ActionResult.PASS;
+            if (!isInCommandMode(sp)) return ActionResult.PASS;
+            if (!(entity instanceof LivingEntity target)) return ActionResult.PASS;
+
+            List<MobEntity> selected = RtsCommandHandler.selectNearbyMobs(sp);
+            RtsCommandHandler.commandAttack(selected, sp, target);
+
+            return ActionResult.FAIL;  // 阻止原版右键交互
         });
     }
 

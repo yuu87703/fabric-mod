@@ -1,6 +1,7 @@
 package com.example.fabricmod.client;
 
 import com.example.fabricmod.FabricMod;
+import com.example.fabricmod.networking.CommandModePayload;
 import com.example.fabricmod.networking.GKeyPressedPayload;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -10,35 +11,54 @@ import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * 客户端按键绑定注册 —— 按下 G 键时向服务端发送自定义包。
+ * 按键绑定：
+ *   G → 召唤（持旗帜时）
+ *   R → 切换 RTS 命令模式（再次按关闭）
+ *   命令模式下右键地面/实体 → 执行 move/attack
  */
 public class ModKeyBindings {
 
-    // 定义 G 键绑定
     private static final KeyBinding G_KEY = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-            "key.fabricmod.g_key",          // 翻译键（用于在语言文件中显示名称）
-            InputUtil.Type.KEYSYM,           // 键位类型：键盘按键
-            GLFW.GLFW_KEY_G,                // 默认按键：G
-            "category.fabricmod"             // 所属分类
-    ));
+            "key.fabricmod.g_key", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G,
+            "category.fabricmod"));
 
-    /**
-     * 注册客户端 Tick 事件，在每一帧检测按键状态。
-     * 此方法在 ClientModInitializer.onInitializeClient() 中调用。
-     */
+    private static final KeyBinding R_KEY = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.fabricmod.command_mode", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R,
+            "category.fabricmod"));
+
+    private static boolean commandModeActive = false;
+
+    public static boolean isCommandModeActive() {
+        return commandModeActive;
+    }
+
     public static void register() {
         FabricMod.LOGGER.info("Registering key bindings...");
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // 当玩家按下 G 键时（仅触发一次，不是按住不放）
+            if (client.getNetworkHandler() == null) return;
+
+            // G 键 → 召唤
             while (G_KEY.wasPressed()) {
-                // 仅在连接至服务端时发包（防止单机世界崩溃）
-                if (client.getNetworkHandler() == null) continue;
+                ClientPlayNetworking.send(new GKeyPressedPayload("G key pressed"));
+            }
 
-                // 向服务端发送自定义包（使用 Fabric 1.21.1 CustomPayload API）
-                ClientPlayNetworking.send(new GKeyPressedPayload("G key was pressed at tick!"));
+            // R 键 → 切换命令模式
+            while (R_KEY.wasPressed()) {
+                commandModeActive = !commandModeActive;
+                ClientPlayNetworking.send(new CommandModePayload(commandModeActive));
 
-                FabricMod.LOGGER.info("Sent G_KEY_PRESSED packet to server.");
+                if (commandModeActive) {
+                    client.player.sendMessage(
+                            net.minecraft.text.Text.literal("§e[RTS] 命令模式 §a开启§e — 右键地面=移动, 右键实体=攻击"),
+                            true
+                    );
+                } else {
+                    client.player.sendMessage(
+                            net.minecraft.text.Text.literal("§7[RTS] 命令模式已关闭"),
+                            true
+                    );
+                }
             }
         });
     }

@@ -2,6 +2,7 @@
   "modmenu.nameTranslation.fabricmod": "Fabric Mod",
   "modmenu.descriptionTranslation.fabricmod": "A Fabric mod for Minecraft 1.21.1",
 
-  "key.fabricmod.g_key": "Send Signal (G)",
+  "key.fabricmod.g_key": "Summon (G)",
+  "key.fabricmod.command_mode": "RTS Command Mode (R)",
   "category.fabricmod": "Fabric Mod"
 }
