@@ -100,7 +100,7 @@ public class RtsCommandHandler {
         Team armyTeam = world.getScoreboard().getTeam(ARMY_TEAM);
         if (armyTeam == null) return list;
 
-        java.util.Set<String> members = armyTeam.getPlayerList();
+        java.util.Collection<String> members = armyTeam.getPlayerList();
         for (Entity e : world.getEntitiesByClass(MobEntity.class,
                 player.getBoundingBox().expand(16),
                 e -> e.isAlive() && members.contains(e.getUuidAsString()))) {

@@ -99,8 +99,8 @@ public class ModPackets {
             BlockHitResult blockHit = (BlockHitResult) hitResult;
             Vec3d pos = blockHit.getBlockPos().toCenterPos();
 
-            List<MobEntity> selected = RtsCommandHandler.selectNearbyMobs(sp);
-            RtsCommandHandler.commandMove(selected, sp, pos);
+            List<MobEntity> selected = LegendsCommandHandler.selectNearbyMobs(sp);
+            LegendsCommandHandler.commandMove(selected, pos);
 
             return ActionResult.FAIL;
         });
@@ -121,8 +121,8 @@ public class ModPackets {
             // 条件：命令模式下 或 手持旗帜/木棍
             if (!inCommandMode && !holdingBanner && !holdingStick) return ActionResult.PASS;
 
-            List<MobEntity> selected = RtsCommandHandler.selectNearbyMobs(sp);
-            RtsCommandHandler.commandAttack(selected, sp, target);
+            List<MobEntity> selected = LegendsCommandHandler.selectNearbyMobs(sp);
+            LegendsCommandHandler.commandAttack(selected, target);
 
             sp.sendMessage(
                     Text.literal("§c[RTS] §6" + selected.size() + " §c个单位正在攻击 §e" + target.getName().getString()),
