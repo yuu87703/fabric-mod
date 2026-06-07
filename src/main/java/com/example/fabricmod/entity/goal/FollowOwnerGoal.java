@@ -9,10 +9,11 @@ import net.minecraft.util.math.Vec3d;
 import java.util.EnumSet;
 
 /**
- * 修复后的跟随 AI：
- * - 修复卡地形：导航失败时重试 + 卡住检测 + 自动传送
- * - 修复远距离脱队：降低传送阈值 + 导航失败立即传送
- * - 保留原有仿马匹行为：速度 1.2，停止距离 2 格
+ * 引诱与跟随（双向链接）：
+ * - 阵型跟随：怪物在玩家身后呈扇形散开，不挤在一起
+ * - 引诱链接：手持吸引物品时，怪物更紧密跟随
+ * - 双向反馈：跟随中的怪物头顶飘浮灵魂粒子，指示状态
+ * - 卡住检测 + 超距传送沿用
  */
 public class FollowOwnerGoal extends Goal {
 
@@ -20,39 +21,42 @@ public class FollowOwnerGoal extends Goal {
     private final PlayerEntity player;
     private final double speed;
     private final double stopDistance;
-    private final double teleportDistance;       // 超出此距离 → 传送
-    private final double stuckTeleportDistance;  // 小于此距离但卡住 → 也传送
+    private final double teleportDistance;
+    private final int formationIndex;     // 阵型位置索引，决定散开角度
 
-    private int cooldown;                        // 传送冷却 tick
-    private int stuckTimer;                      // 卡住计时器
-    private Vec3d lastPos;                       // 上一帧位置，用于检测卡住
-    private int failedPathCount;                 // 连续寻路失败次数
-    private int retryCooldown;                   // 寻路重试冷却
+    private int cooldown;
+    private int stuckTimer;
+    private Vec3d lastPos;
+    private int failedPathCount;
+    private int retryCooldown;
+    private int particleTimer;            // 粒子显示计时器
 
-    private static final int STUCK_THRESHOLD = 40;       // 卡住判定：40 tick (~2秒) 位置没变
-    private static final int MAX_FAILED_PATH = 10;       // 连续 10 次寻路失败就传送
-    private static final int TELEPORT_COOLDOWN = 30;     // 传送冷却：30 tick (~1.5秒)
+    private static final int STUCK_THRESHOLD = 40;
+    private static final int MAX_FAILED_PATH = 10;
+    private static final int TELEPORT_COOLDOWN = 30;
 
+    /**
+     * @param formationIndex 阵型位置索引：0=正后方，1=左后，2=右后，依次扩散
+     */
     public FollowOwnerGoal(MobEntity mob, PlayerEntity player, double speed,
-                            double stopDistance, double teleportDistance) {
+                            double stopDistance, double teleportDistance, int formationIndex) {
         this.mob = mob;
         this.player = player;
         this.speed = speed;
         this.stopDistance = stopDistance;
         this.teleportDistance = teleportDistance;
-        this.stuckTeleportDistance = teleportDistance * 1.5;
+        this.formationIndex = formationIndex;
         this.setControls(EnumSet.of(Control.MOVE, Control.JUMP));
     }
 
     public FollowOwnerGoal(MobEntity mob, PlayerEntity player, double speed, double stopDistance) {
-        this(mob, player, speed, stopDistance, 12.0);
+        this(mob, player, speed, stopDistance, 12.0, 0);
     }
 
     @Override
     public boolean canStart() {
-        if (player == null || !player.isAlive()) return false;
-        double dist = mob.distanceTo(player);
-        return dist > stopDistance;
+        return player != null && player.isAlive()
+                && mob.distanceTo(player) > stopDistance;
     }
 
     @Override
@@ -63,7 +67,9 @@ public class FollowOwnerGoal extends Goal {
     @Override
     public void start() {
         resetState();
-        tryTeleportIfFar();
+        if (mob.distanceTo(player) > stuckTeleportDistance()) {
+            tryTeleport();
+        }
         tryNavigate();
     }
 
@@ -78,111 +84,122 @@ public class FollowOwnerGoal extends Goal {
         if (player == null || player.isRemoved()) return;
         double dist = mob.distanceTo(player);
 
-        // —— ① 超距或寻路频繁失败 → 传送 ——
+        // —— ① 超距传送 ——
         if (dist > teleportDistance || failedPathCount >= MAX_FAILED_PATH) {
             tryTeleport();
             return;
         }
 
         // —— ② 卡住检测 ——
-        Vec3d currentPos = mob.getPos();
+        Vec3d pos = mob.getPos();
         if (lastPos != null && dist > stopDistance) {
-            double moved = currentPos.distanceTo(lastPos);
-            if (moved < 0.05) {  // 几乎没动
-                stuckTimer++;
-                if (stuckTimer > STUCK_THRESHOLD) {
-                    // 卡住了 → 尝试跳 + 传送
+            if (pos.distanceTo(lastPos) < 0.05) {
+                if (++stuckTimer > STUCK_THRESHOLD) {
                     mob.getJumpControl().setActive();
                     tryTeleport();
                     stuckTimer = 0;
                     return;
                 }
-            } else {
-                stuckTimer = 0;  // 在移动 → 重置卡住计时
-            }
+            } else stuckTimer = 0;
         }
-        lastPos = currentPos;
+        lastPos = pos;
 
-        // —— ③ 正常跟随/停步 ——
-        if (dist > stopDistance) {
-            tryNavigate();
+        // —— ③ 正常跟随，走向阵型位置 ——
+        Vec3d formationTarget = getFormationPosition();
+        double formationDist = mob.squaredDistanceTo(formationTarget);
+
+        if (formationDist > stopDistance * stopDistance) {
+            mob.getNavigation().startMovingTo(
+                    formationTarget.x, formationTarget.y, formationTarget.z, speed);
         } else {
             mob.getNavigation().stop();
-            failedPathCount = 0;  // 到达了 → 重置失败计数
+            failedPathCount = 0;
+        }
+
+        // —— ④ 状态粒子（双向视觉反馈） ——
+        particleTimer--;
+        if (particleTimer <= 0 && mob.getWorld() instanceof ServerWorld sw) {
+            particleTimer = 30; // 每 1.5 秒显示一次
+            // 跟随状态：蓝色魂火粒子飘浮
+            sw.spawnParticles(net.minecraft.particle.ParticleTypes.SOUL_FIRE_FLAME,
+                    mob.getX(), mob.getY() + 2.2, mob.getZ(),
+                    1, 0.1, 0, 0.1, 0.005);
         }
     }
 
-    // ────────── 辅助方法 ──────────
+    /**
+     * 计算阵型位置：玩家身后扇形散开。
+     * 索引 0 → 正后方 2 格
+     * 索引 1 → 左后方 2.5 格
+     * 索引 2 → 右后方 2.5 格
+     * 索引 3+ → 更外侧扩散
+     */
+    private Vec3d getFormationPosition() {
+        double angleOffset = 0;
+        double distance = 2.0;
+        double spread = Math.PI / 3;  // 60 度扇形
+
+        if (formationIndex == 0) {
+            angleOffset = 0;           // 正后方
+            distance = 2.0;
+        } else if (formationIndex == 1) {
+            angleOffset = -spread * 0.4;  // 左后
+            distance = 2.5;
+        } else if (formationIndex == 2) {
+            angleOffset = spread * 0.4;   // 右后
+            distance = 2.5;
+        } else {
+            int side = (formationIndex % 2 == 0) ? -1 : 1;
+            int tier = (formationIndex - (formationIndex % 2)) / 2;
+            angleOffset = side * spread * (0.5 + tier * 0.3);
+            distance = 3.0 + tier * 0.8;
+        }
+
+        float yaw = player.getYaw();
+        double behindAngle = Math.toRadians(yaw + 180 + Math.toDegrees(angleOffset));
+
+        double tx = player.getX() + distance * Math.sin(behindAngle);
+        double tz = player.getZ() + distance * Math.cos(behindAngle);
+
+        return new Vec3d(tx, player.getY(), tz);
+    }
+
+    private double stuckTeleportDistance() {
+        return teleportDistance * 1.5;
+    }
 
     private void resetState() {
-        cooldown = 0;
-        stuckTimer = 0;
-        lastPos = null;
-        failedPathCount = 0;
-        retryCooldown = 0;
+        cooldown = 0; stuckTimer = 0; lastPos = null;
+        failedPathCount = 0; retryCooldown = 0; particleTimer = 0;
     }
 
-    /**
-     * 尝试导航走向玩家。返回值表示是否成功找到路径。
-     */
     private boolean tryNavigate() {
-        if (retryCooldown > 0) {
-            retryCooldown--;
-            return false;
-        }
-
-        boolean foundPath = mob.getNavigation().startMovingTo(player, speed);
-        if (!foundPath) {
-            failedPathCount++;
-            retryCooldown = 5;  // 5 tick 后再试
-        } else {
-            failedPathCount = 0;
-        }
-        return foundPath;
+        if (retryCooldown > 0) { retryCooldown--; return false; }
+        Vec3d f = getFormationPosition();
+        boolean ok = mob.getNavigation().startMovingTo(f.x, f.y, f.z, speed);
+        if (!ok) { failedPathCount++; retryCooldown = 5; }
+        else failedPathCount = 0;
+        return ok;
     }
 
-    /**
-     * 距离远时直接传送，不走寻路。
-     */
-    private void tryTeleportIfFar() {
-        if (mob.distanceTo(player) > stuckTeleportDistance) {
-            tryTeleport();
-        }
-    }
-
-    /**
-     * 尝试将生物传送至玩家附近。
-     */
     private void tryTeleport() {
-        if (cooldown > 0) {
-            cooldown--;
-            return;
-        }
+        if (cooldown > 0) { cooldown--; return; }
         cooldown = TELEPORT_COOLDOWN;
-
-        if (!(mob.getWorld() instanceof ServerWorld serverWorld)) return;
+        if (!(mob.getWorld() instanceof ServerWorld sw)) return;
         if (player == null || player.isRemoved()) return;
 
-        // 尝试多个位置，优先找安全的方块
-        for (int attempt = 0; attempt < 12; attempt++) {
+        for (int a = 0; a < 12; a++) {
             double rad = mob.getRandom().nextDouble() * 2 * Math.PI;
-            double r = 2 + mob.getRandom().nextDouble() * 3;  // 2~5 格
+            double r = 2 + mob.getRandom().nextDouble() * 3;
             double x = player.getX() + r * Math.cos(rad);
             double z = player.getZ() + r * Math.sin(rad);
-            double y = player.getY();
-
-            mob.refreshPositionAndAngles(x, y, z, mob.getYaw(), mob.getPitch());
-            if (!serverWorld.isSpaceEmpty(mob)) continue;
-
-            // 传送成功
-            serverWorld.spawnParticles(
-                    net.minecraft.particle.ParticleTypes.REVERSE_PORTAL,
+            mob.refreshPositionAndAngles(x, player.getY(), z, mob.getYaw(), mob.getPitch());
+            if (!sw.isSpaceEmpty(mob)) continue;
+            sw.spawnParticles(net.minecraft.particle.ParticleTypes.REVERSE_PORTAL,
                     mob.getX(), mob.getBodyY(0.5), mob.getZ(),
-                    8, 0.5, 0.5, 0.5, 0.1
-            );
+                    8, 0.5, 0.5, 0.5, 0.1);
             mob.getNavigation().stop();
-            failedPathCount = 0;
-            stuckTimer = 0;
+            failedPathCount = 0; stuckTimer = 0;
             return;
         }
     }

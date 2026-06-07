@@ -239,16 +239,31 @@ public class LegendsCommandHandler {
     //  AI 绑定（三级目标 + 移动 + 攻击）
     // ═══════════════════════════════════════════════════
 
+    /**
+     * 绑定 AI：根据现有跟随数量分配阵型位置索引，实现扇形散开。
+     */
     public static void bindGoals(MobEntity mob, ServerPlayerEntity player) {
         // 防燃烧
         mob.addStatusEffect(new StatusEffectInstance(StatusEffects.FIRE_RESISTANCE,
                 StatusEffectInstance.INFINITE, 0, false, false, false));
-        // 跟随
-        mob.goalSelector.add(1, new FollowOwnerGoal(mob, player, 1.2, 2.0));
+
+        // 计算阵型索引：当前已有多少只召唤物在跟随
+        int formationIndex = countFollowingMobs(player);
+
+        // 跟随（阵型扇形散开）
+        mob.goalSelector.add(1, new FollowOwnerGoal(mob, player, 1.2, 2.0, 12.0, formationIndex));
+
         // 三级目标选择器
         mob.targetSelector.add(0, new LockOnGoalWrapper(mob));               // p0 集火
         mob.targetSelector.add(1, new DefendPlayerTargetGoal(mob, player));  // p1 防御
         mob.targetSelector.add(2, new AutoTargetGoal(mob));                  // p2 索敌
+    }
+
+    /**
+     * 统计当前有多少己方召唤物存活，用于分配阵型索引。
+     */
+    private static int countFollowingMobs(ServerPlayerEntity player) {
+        return selectNearbyMobs(player).size();
     }
 
     // ═══════════════════════════════════════════════════
